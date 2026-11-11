@@ -41,6 +41,15 @@ The one place an **Agent** is allowed to write. Writing anywhere else is misbeha
 **Scenario**:
 A scripted sequence of actions a **Mock Agent** performs. Either **benign** (ordinary agent work) or **rogue** (misbehaviour such as exfiltration or privilege escalation).
 
+**Approved Destination**:
+A network destination an **Agent** is allowed to reach. Reaching anything else is misbehaviour.
+
+**Outside World**:
+The stand-ins for everything beyond the cluster: an approved external service, and an **Exfil Sink** playing the attacker. Tests never touch the real internet.
+
+**Exfil Sink**:
+The **Outside World** stand-in for an attacker's server. Never an **Approved Destination**; records whatever reaches it, so "nothing arrived" can be proven.
+
 **Guardrail**:
 A kernel-level rule that blocks or kills an **Agent** action, as opposed to merely observing it.
 
@@ -52,6 +61,7 @@ A kernel-level rule that blocks or kills an **Agent** action, as opposed to mere
 - A **Mock Agent** plays one **Scenario** per **Task**, and may play many over its life
 - Mock and real **Agents** receive the same **Tasks**; nothing else about the slot differs
 - A **rogue** **Scenario** is expected to trip at least one **Guardrail**
+- Every **Swarm** runs benign **Scenarios** alongside rogue ones: a **Guardrail** that breaks benign work is a defect
 - A **Guardrail** never distinguishes a **Mock Agent** from a real **Agent**
 
 ## Flagged ambiguities
