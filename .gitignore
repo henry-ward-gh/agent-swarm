@@ -1,0 +1,16 @@
+# Claude Code local state and agent worktrees
+.claude/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+.terraform.tfstate.lock.info
+
+# Local tooling
+.task/
+*.kubeconfig
+kubeconfig
+.DS_Store
