@@ -28,6 +28,10 @@ kind: TracingPolicy
 metadata:
   name: spike-credential-files
 spec:
+  # Override cannot be attached via kprobe_multi links
+  options:
+    - name: disable-kprobe-multi
+      value: "1"
   podSelector:
     matchLabels:
       app: victim
@@ -63,6 +67,10 @@ kind: TracingPolicy
 metadata:
   name: spike-workspace-exec
 spec:
+  # Override cannot be attached via kprobe_multi links
+  options:
+    - name: disable-kprobe-multi
+      value: "1"
   podSelector:
     matchLabels:
       app: victim

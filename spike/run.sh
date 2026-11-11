@@ -34,6 +34,9 @@ kubectl apply -f policies.yaml || exit 1
 sleep 15
 kubectl get tracingpolicies -o wide
 kubectl -n kube-system logs ds/tetragon -c tetragon --since=30s | grep -iE 'error|fail|warn' | head -20
+for p in spike-egress spike-credential-files spike-workspace-exec; do
+  if kubectl -n kube-system logs ds/tetragon -c tetragon | grep -q "failed loading policy '$p'"; then record "load-$p" FAIL "policy rejected"; else record "load-$p" PASS "loaded"; fi
+done
 
 vexec() { kubectl exec victim -- sh -c "$1" >/tmp/out 2>&1; local rc=$?; sed 's/^/    /' /tmp/out; return $rc; }
 
@@ -55,7 +58,7 @@ echo "exit=$rc"
 if [ $rc -eq 1 ] && grep -qi 'not permitted' /tmp/out; then record override-eperm PASS "exit $rc + EPERM"; else record override-eperm FAIL "exit $rc"; fi
 
 section "3. Workspace exec: run a binary copied into /workspace -> expect Override+Sigkill (137)"
-vexec 'cp /bin/busybox /workspace/payload && /workspace/payload true'; rc=$?
+vexec 'cp /bin/busybox /workspace/true && /workspace/true'; rc=$?
 expect workspace-exec 137 "$rc"
 
 section "3b. Benign exec outside /workspace still works"
