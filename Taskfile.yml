@@ -1,0 +1,19 @@
+# https://taskfile.dev
+version: '3'
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+    silent: true
+
+  setup:
+    desc: Install the git pre-commit hooks
+    cmds:
+      - pre-commit install --install-hooks
+
+  lint:
+    desc: Run every linter, exactly as CI does
+    cmds:
+      - pre-commit run --all-files --show-diff-on-failure

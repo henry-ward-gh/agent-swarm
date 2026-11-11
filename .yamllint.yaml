@@ -1,0 +1,14 @@
+extends: default
+
+ignore: |
+  # Helm templates are Go templates, not plain YAML
+  **/templates/**
+
+rules:
+  document-start: disable
+  line-length:
+    max: 160
+  truthy:
+    check-keys: false
+  comments:
+    min-spaces-from-content: 1
