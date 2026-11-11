@@ -4,5 +4,5 @@ A Mock Agent does not get its Scenario from pod config (e.g. `SCENARIO=exfil`). 
 
 ## Consequences
 
-- Worker pods are long-running and play many Scenarios over their life; a Guardrail `Sigkill` shows up as a container restart (exit 137), not a failed Job.
-- Tests drive behaviour through the Orchestrator's Task protocol, not by redeploying pods.
+- Worker pods are long-running and play many Scenarios over their life. Each Scenario runs as a child process of the Worker, as a real Agent's tool call would, so a Guardrail `Sigkill` kills that process (exit 137) and the Worker survives to report the Task `failed` with the exit code. (Amended: originally said a `Sigkill` would restart the container.)
+- Tests drive behaviour by submitting Goals to the Orchestrator, not by redeploying pods.

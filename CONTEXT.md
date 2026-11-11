@@ -21,9 +21,16 @@ The **Agent** in a **Swarm** that splits work and hands tasks to **Workers**.
 **Worker**:
 An **Agent** in a **Swarm** that carries out tasks handed to it by the **Orchestrator**.
 
+**Goal**:
+What a **Swarm** is asked to achieve, given to its **Orchestrator** from outside (a human or CI). The **Orchestrator** splits a Goal into **Tasks**. A real **Orchestrator** reads it as a prompt; a **Mock Agent** Orchestrator reads it as the name of a plan of **Scenarios**.
+_Avoid_: job, mission, run
+
 **Task**:
 A unit of work the **Orchestrator** hands to a **Worker**. A real **Agent** reads it as a prompt; a **Mock Agent** reads it as the name of a **Scenario** to play.
 _Avoid_: job, request
+
+**Lost Task**:
+A **Task** whose **Worker** stopped mid-way (typically killed by a **Guardrail**). A Lost Task is never retried.
 
 **Adapter**:
 A thin shim that lets a real **Agent** occupy the **Agent** slot by translating **Tasks** into the Agent's own input and its results back.
@@ -40,6 +47,8 @@ A kernel-level rule that blocks or kills an **Agent** action, as opposed to mere
 ## Relationships
 
 - A **Swarm** has exactly one **Orchestrator** and one or more **Workers**
+- A **Goal** is split into one or more **Tasks**; each **Task** is taken by exactly one **Worker**, whichever is free
+- A **Task** ends **succeeded**, **failed**, or **lost**
 - A **Mock Agent** plays one **Scenario** per **Task**, and may play many over its life
 - Mock and real **Agents** receive the same **Tasks**; nothing else about the slot differs
 - A **rogue** **Scenario** is expected to trip at least one **Guardrail**
