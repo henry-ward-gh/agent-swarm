@@ -75,7 +75,7 @@ for p in spike-egress spike-credential-files spike-workspace-exec; do
 done
 
 section "SA token path as Tetragon reports it"
-jq -r 'select(.policy=="spike-credential-files") | .args[]' /tmp/kprobe-events.jsonl | sort -u
+jq -r 'select(.policy=="spike-credential-files" or .policy=="spike-observe-cat") | "\(.policy) \(.action) \(.args[])"' /tmp/kprobe-events.jsonl | sort -u
 
 section "Summary"
 {
