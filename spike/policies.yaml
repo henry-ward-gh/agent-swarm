@@ -1,0 +1,84 @@
+# Throwaway spike policies — one per planned Guardrail hook (ADR 0003).
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: spike-egress
+spec:
+  podSelector:
+    matchLabels:
+      app: victim
+  kprobes:
+    - call: tcp_connect
+      syscall: false
+      args:
+        - index: 0
+          type: sock
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: NotDAddr
+              values:
+                - 10.96.0.0/12
+                - 127.0.0.1
+          matchActions:
+            - action: Sigkill
+---
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: spike-credential-files
+spec:
+  podSelector:
+    matchLabels:
+      app: victim
+  kprobes:
+    - call: security_file_open
+      syscall: false
+      args:
+        - index: 0
+          type: file
+      selectors:
+        # Override + Sigkill on the ServiceAccount token
+        - matchArgs:
+            - index: 0
+              operator: Postfix
+              values:
+                - serviceaccount/token
+          matchActions:
+            - action: Override
+              argError: -1
+            - action: Sigkill
+        # Override alone, to see EPERM with the process surviving
+        - matchArgs:
+            - index: 0
+              operator: Postfix
+              values:
+                - /etc/passwd
+          matchActions:
+            - action: Override
+              argError: -1
+---
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: spike-workspace-exec
+spec:
+  podSelector:
+    matchLabels:
+      app: victim
+  kprobes:
+    - call: security_bprm_check
+      syscall: false
+      args:
+        - index: 0
+          type: linux_binprm
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: Prefix
+              values:
+                - /workspace/
+          matchActions:
+            - action: Override
+              argError: -1
+            - action: Sigkill
