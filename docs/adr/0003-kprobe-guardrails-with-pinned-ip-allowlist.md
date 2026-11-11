@@ -7,3 +7,5 @@ Every Guardrail is a Tetragon kprobe policy (`tcp_connect`, `security_file_open`
 - Adding an Approved Destination means pinning its ClusterIP and adding it to chart values — hostnames cannot be allowlisted.
 - Guardrails are `TracingPolicyNamespaced`, rendered per Swarm by the Swarm chart from templates in `policies/`.
 - If a cloud target later offers BPF LSM, LSM-based Guardrails become possible but are a new decision.
+- Proven on a GitHub-hosted runner by the [enforcement spike](https://github.com/henry-ward-gh/agent-swarm/issues/12). Any policy using `Override` must set the TracingPolicy option `disable-kprobe-multi`, or Tetragon rejects it at load while the CRD still appears created.
+- File Guardrails match by directory prefix: projected volumes put the real file under a `..<timestamp>` directory, so postfix matches on file names miss.
