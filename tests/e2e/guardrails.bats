@@ -55,7 +55,12 @@ check_plan() {
   fi
 }
 
+# `smoke` first, so a broken Swarm fails fast; then every other plan (benign, rogue, demo).
+plans=(smoke)
 for plan_file in "$BATS_TEST_DIRNAME"/../../agents/mock/goals/*.txt; do
   plan=$(basename "$plan_file" .txt)
+  [[ "$plan" == smoke ]] || plans+=("$plan")
+done
+for plan in "${plans[@]}"; do
   bats_test_function --description "Goal $plan: every Task does what its Scenario declares" -- check_plan "$plan"
 done

@@ -13,6 +13,7 @@ setup() {
 {"process_kprobe":{"policy_name":"guardrail-egress","action":"KPROBE_ACTION_POST","process":{"pod":{"namespace":"swarm-demo","name":"worker-a"}}},"time":"2026-11-12T10:00:05.3Z"}
 {"process_kprobe":{"policy_name":"guardrail-credential-files","action":"KPROBE_ACTION_OVERRIDE","process":{"pod":{"namespace":"swarm-demo","name":"worker-b"}}},"time":"2026-11-12T10:01:05.0Z"}
 {"process_exec":{"process":{"pod":{"namespace":"swarm-demo","name":"worker-a"}}},"time":"2026-11-12T10:00:05.0Z"}
+{"process_kprobe":{"policy_name":"guardrail-workspace-exec","action":"KPROBE_ACTION_SIGKILL","process":{"pod":{"namespace":"swarm-demo","name":"worker-c"}}},"time":"2026-11-12T10:02:00.100Z"}
 JSON
 }
 
@@ -100,6 +101,17 @@ result() { # <status> <exitCode> <worker> <start> <finish>
   run verdict succeeded "$(result failed 1 worker-a 2026-11-12T10:30:00.000Z 2026-11-12T10:30:10.000Z)" "$EVENTS" "$NS"
   [ "$status" -ne 0 ]
   [[ "$output" == *"status failed"* ]]
+}
+
+@test "a benign Task right after a rogue one on the same Worker is not blamed for the rogue Task's kill" {
+  # worker-c was killed at 10:02:00.100; its next (benign) Task starts 100 ms later, in the same second.
+  run verdict succeeded "$(result succeeded 0 worker-c 2026-11-12T10:02:00.200Z 2026-11-12T10:02:03.000Z)" "$EVENTS" "$NS"
+  [ "$status" -eq 0 ]
+}
+
+@test "a rogue Task is still Blocked when its kill lands a hair outside the window (clock skew)" {
+  run verdict "blocked guardrail-workspace-exec" "$(result failed 137 worker-c 2026-11-12T10:02:00.300Z 2026-11-12T10:02:00.400Z)" "$EVENTS" "$NS"
+  [ "$status" -eq 0 ]
 }
 
 @test "sink_empty accepts an empty sink and rejects one that received data" {

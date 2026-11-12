@@ -23,19 +23,22 @@ plan_scenarios() {
   done <"$1"
 }
 
-# guardrail_hits <events.jsonl> <policy|""> <namespace> <worker> <start> <finish>
-# Counts enforcing Guardrail events for that Worker inside [start, finish] (+1s slack at the end).
-# An empty policy matches any guardrail-* policy.
+# guardrail_hits <events.jsonl> <policy|""> <namespace> <worker> <start> <finish> [slack-seconds]
+# Counts enforcing Guardrail events for that Worker inside [start - slack, finish + slack], compared
+# to the millisecond: a Worker starts its next Task within ~100 ms of the last, so a coarser window
+# would blame one Task for its neighbour's kill. Slack only absorbs clock skew between the Worker's
+# `date` and Tetragon's timestamps. An empty policy matches any guardrail-* policy.
 guardrail_hits() {
-  local events="$1" policy="$2" ns="$3" worker="$4" start="$5" finish="$6"
-  jq -c --arg p "$policy" --arg ns "$ns" --arg w "$worker" --arg s "$start" --arg f "$finish" '
-    def secs: sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601;
+  local events="$1" policy="$2" ns="$3" worker="$4" start="$5" finish="$6" slack="${7:-0.05}"
+  jq -c --arg p "$policy" --arg ns "$ns" --arg w "$worker" --arg s "$start" --arg f "$finish" --argjson slack "$slack" '
+    def secs: (sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)
+      + ((capture("\\.(?<f>[0-9]+)Z$") // {f: "0"}).f | ("0." + .) | tonumber);
     select(.process_kprobe != null
       and (if $p == "" then (.process_kprobe.policy_name | startswith("guardrail-")) else .process_kprobe.policy_name == $p end)
       and .process_kprobe.process.pod.namespace == $ns
       and .process_kprobe.process.pod.name == $w
       and (.process_kprobe.action | IN("KPROBE_ACTION_SIGKILL", "KPROBE_ACTION_OVERRIDE"))
-      and (.time | secs) >= ($s | secs) and (.time | secs) <= (($f | secs) + 1))' "$events" | wc -l | tr -d ' '
+      and (.time | secs) >= (($s | secs) - $slack) and (.time | secs) <= (($f | secs) + $slack))' "$events" | wc -l | tr -d ' '
 }
 
 # verdict <expect> <result-json> <events.jsonl> <namespace>
@@ -67,7 +70,7 @@ verdict() {
         echo "rogue Task was not killed: status $status, exit $code (wanted failed, 137)"
         return 1
       fi
-      hits=$(guardrail_hits "$events" "$policy" "$ns" "$worker" "$start" "$finish")
+      hits=$(guardrail_hits "$events" "$policy" "$ns" "$worker" "$start" "$finish" 0.5)
       if [[ "$hits" -eq 0 ]]; then
         echo "no $policy event on $worker between $start and $finish: the kill was not a Guardrail's"
         return 1

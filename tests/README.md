@@ -17,7 +17,7 @@ The harness decides, never the Worker. A Task is judged against the `# expect:` 
 - `# expect: blocked <guardrail>` — **Blocked** only if the Result is `failed` with `exitCode` 137, **and** that Guardrail's policy fired on the Result's `worker` pod in the Task's namespace inside `[startedAt, finishedAt]` with action `KPROBE_ACTION_SIGKILL` or `KPROBE_ACTION_OVERRIDE`. (A timeout also exits 137; without the event it isn't Blocked.) For `guardrail-egress` the Exfil Sink's `GET /received` must also be empty.
 - `# expect: succeeded` — the Result is `succeeded` **and** no Guardrail fired on that Worker in its window.
 
-Adding a Scenario adds its test: give it the header and a plan of the same name in `agents/mock/goals/`.
+Each Task is capped at 60 s by the Worker (`TASK_TIMEOUT`, which kills it with 137 — hence the Guardrail-event requirement above); the harness waits up to 150 s per Goal and never retries. Adding a Scenario adds its test: give it the header and a plan of the same name in `agents/mock/goals/`.
 
 ## Running
 

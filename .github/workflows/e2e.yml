@@ -18,7 +18,8 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Only supersede PR runs; a push to main and the nightly run share a ref and must both finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   BATS_VERSION: v1.14.0
