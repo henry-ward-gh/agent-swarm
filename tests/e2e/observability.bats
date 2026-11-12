@@ -3,6 +3,16 @@
 # so every rogue Goal has already been played: Tetragon's events and the Agents' Task events must have
 # reached Loki, and Prometheus must be scraping Tetragon. Ingest is asynchronous, hence `eventually`.
 
+setup_file() {
+  load ../lib/observability
+  grafana_forward_start
+}
+
+teardown_file() {
+  load ../lib/observability
+  grafana_forward_stop
+}
+
 setup() {
   load ../lib/observability
   REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
@@ -45,4 +55,13 @@ swarm_events() { echo "sum(count_over_time({swarm=\"$SWARM\", $1} ${2:-} [3h]))"
     [ "$status" -eq 0 ] || { echo "Loki rejected: $expr"; return 1; }
   done < <(dashboard_loki_exprs "$REPO_ROOT/gitops/platform/observability/files/swarm-activity.json" "$SWARM")
   [ "$n" -ge 6 ]
+}
+
+@test "Grafana loaded the Swarm activity dashboard" {
+  eventually 120 grafana_succeeds /api/dashboards/uid/swarm-activity
+}
+
+@test "Grafana can query Loki and Prometheus through its provisioned datasources" {
+  eventually 120 grafana_succeeds /api/datasources/proxy/uid/loki/loki/api/v1/labels
+  eventually 120 grafana_succeeds '/api/datasources/proxy/uid/prometheus/api/v1/query?query=up'
 }

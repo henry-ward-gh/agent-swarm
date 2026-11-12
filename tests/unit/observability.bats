@@ -65,3 +65,12 @@ JSON
   [ "${lines[1]}" = 'count_over_time({swarm="x"}[1m])' ]
   [ "${#lines[@]}" -eq 2 ]
 }
+
+@test "grafana_get authenticates and uses the forwarded port; grafana_succeeds needs a success status" {
+  printf '#!/usr/bin/env bash\necho "$*" >>"%s/curl-args"\necho "$FAKE_BODY"\n' "$BATS_TEST_TMPDIR" >"$BIN/curl"; chmod +x "$BIN/curl"
+  GRAFANA_PF_PID=$$ GRAFANA_PORT=4242 FAKE_BODY='{"status":"success"}' grafana_succeeds /api/x
+  grep -q -- "-u admin:admin http://127.0.0.1:4242/api/x" "$BATS_TEST_TMPDIR/curl-args"
+  GRAFANA_PF_PID=$$ GRAFANA_PORT=4242 FAKE_BODY='{"dashboard":{}}' grafana_succeeds /api/dashboards/uid/x
+  GRAFANA_PF_PID=$$ GRAFANA_PORT=4242 FAKE_BODY='{"status":"error"}' run grafana_succeeds /api/x
+  [ "$status" -ne 0 ]
+}

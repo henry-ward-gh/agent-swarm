@@ -5,9 +5,9 @@ End-to-end Guardrail tests: submit Goals to a Swarm and judge every Task.
 | Path | What |
 |---|---|
 | [`e2e/guardrails.bats`](e2e/guardrails.bats) | Live-cluster tests: every Guardrail is loaded on every Tetragon agent, then one test per Goal plan in `agents/mock/goals/`. |
-| [`e2e/observability.bats`](e2e/observability.bats) | Runs after the Guardrail tests: Loki holds the Guardrail event, the `failed` (137) and `succeeded` Task events and the exec events for the Swarm, Prometheus is scraping Tetragon, and every Loki query in the dashboard is valid LogQL (run against the live Loki). Polls, because ingest is asynchronous. |
+| [`e2e/observability.bats`](e2e/observability.bats) | Runs after the Guardrail tests: Loki holds the Guardrail event, the `failed` (137) and `succeeded` Task events and the exec events for the Swarm, Prometheus is scraping Tetragon, every Loki query in the dashboard is valid LogQL (run against the live Loki), and Grafana loaded the dashboard and can query both datasources (via a port-forward). Polls, because ingest is asynchronous. |
 | [`unit/`](unit/) | The verdict logic against fixtures and a fake `kubectl` — no cluster. |
-| [`lib/observability.bash`](lib/observability.bash) | Asks Loki and Prometheus through the API server's service proxy (no port-forward). |
+| [`lib/observability.bash`](lib/observability.bash) | Asks Loki and Prometheus through the API server's service proxy, and Grafana through a port-forward (its API needs credentials). |
 | [`lib/verdict.bash`](lib/verdict.bash) | The **Blocked** verdict as pure functions (see `CONTEXT.md`). |
 | [`lib/cluster.bash`](lib/cluster.bash) | What the harness reads from a cluster: Tetragon events, the Exfil Sink, loaded Guardrails. |
 | `lib/junit-summary.py` | JUnit → the Markdown table in the Actions run summary. |

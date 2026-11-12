@@ -56,3 +56,28 @@ loki_range_ok() {
   out=$(kubectl get --raw "/api/v1/namespaces/monitoring/services/loki:3100/proxy/loki/api/v1/query_range?query=$(jq -rn --arg q "$1" '$q | @uri')&start=$((now - 3600))&end=$now&step=60&limit=5") || return 1
   [[ "$(jq -r .status <<<"$out")" == "success" ]]
 }
+
+# ---- Grafana (needs a port-forward: its API wants credentials, which the API server's service proxy can't send) ----
+
+GRAFANA_PORT="${GRAFANA_PORT:-13000}"
+
+# grafana_forward_start — port-forward to Grafana in the background; the pid is left in GRAFANA_PF_PID.
+grafana_forward_start() {
+  kubectl -n monitoring port-forward svc/kube-prometheus-stack-grafana "$GRAFANA_PORT:80" >/dev/null 2>&1 &
+  GRAFANA_PF_PID=$!
+  export GRAFANA_PF_PID
+}
+
+grafana_forward_stop() { [[ -z "${GRAFANA_PF_PID:-}" ]] || kill "$GRAFANA_PF_PID" 2>/dev/null || true; }
+
+# grafana_get <path> — GET against Grafana as the demo admin (the platform app sets admin / admin).
+grafana_get() {
+  curl -fsS -u admin:admin "http://127.0.0.1:$GRAFANA_PORT$1"
+}
+
+# grafana_succeeds <path> — GET succeeds and, if it's a Loki/Prometheus API response, reports status "success".
+grafana_succeeds() {
+  # The forward dies if it was started before Grafana was ready: bring it back rather than fail forever.
+  kill -0 "${GRAFANA_PF_PID:-0}" 2>/dev/null || { grafana_forward_start; sleep 2; }
+  grafana_get "$1" | jq -e '(.status // "success") == "success"' >/dev/null
+}
