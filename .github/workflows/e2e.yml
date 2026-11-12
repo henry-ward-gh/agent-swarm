@@ -51,6 +51,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ env.REVISION }}
           fetch-depth: 0
       - name: Does this change need a cluster?
         id: changes
