@@ -28,6 +28,7 @@ task setup               # install git hooks
 task lint                # run all linters, as CI does
 task up                  # kind cluster + Argo CD following main (task down to remove)
 task argocd:ui           # Argo CD UI on localhost:8080
+task grafana:ui          # Grafana (Swarm activity dashboard) on localhost:3000, admin / admin
 task images:load         # build the Mock Agent image and load it into kind
 task goal -- smoke --wait 60   # submit a Goal to the demo Swarm
 ```

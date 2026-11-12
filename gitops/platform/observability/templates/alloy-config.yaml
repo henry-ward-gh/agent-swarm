@@ -1,0 +1,11 @@
+# Read by the Alloy platform app (alloy.configMap.name / key). Alloy and this chart sync in the same
+# wave and namespace: the Alloy pods wait for this ConfigMap to exist, then start.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alloy-config
+  labels:
+    app.kubernetes.io/part-of: agent-swarm
+data:
+  config.alloy: |
+    {{- .Files.Get "files/config.alloy" | nindent 4 }}

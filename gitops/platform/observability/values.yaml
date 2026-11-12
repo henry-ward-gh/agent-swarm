@@ -1,0 +1,2 @@
+# Where Loki (a separate platform app) listens; Alloy pushes here and Grafana queries it.
+lokiURL: http://loki.monitoring.svc:3100

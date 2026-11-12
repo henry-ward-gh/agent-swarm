@@ -1,0 +1,12 @@
+# Picked up by Grafana's dashboard sidecar. The JSON is a plain file: export it from the Grafana UI
+# ("Share > Export", off "externally") and drop it in files/ to change the dashboard.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-swarm-activity
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/part-of: agent-swarm
+data:
+  swarm-activity.json: |
+    {{- .Files.Get "files/swarm-activity.json" | nindent 4 }}

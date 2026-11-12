@@ -59,7 +59,7 @@ jobs:
     # The real thing: both stages on kind, then Argo CD must sync the root app
     # at exactly this commit, from the repo the commit lives in (fork-safe).
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
       REPO_URL: ${{ github.event.pull_request.head.repo.clone_url || format('{0}/{1}.git', github.server_url, github.repository) }}
@@ -82,8 +82,9 @@ jobs:
         run: |
           kubectl -n argocd wait applications.argoproj.io/root \
             --for=jsonpath='{.status.sync.status}'=Synced --timeout=5m
+          # Healthy only once every child is, including the observability stack's image pulls.
           kubectl -n argocd wait applications.argoproj.io/root \
-            --for=jsonpath='{.status.health.status}'=Healthy --timeout=5m
+            --for=jsonpath='{.status.health.status}'=Healthy --timeout=12m
           got=$(kubectl -n argocd get configmap root-info -o jsonpath='{.data.targetRevision}')
           echo "root-info.targetRevision=$got"
           test "$got" = "$REVISION"
@@ -103,14 +104,13 @@ jobs:
       - name: Tetragon events carry pod metadata
         run: |
           kubectl -n kube-system rollout status ds/tetragon --timeout=5m
-          # Generate process activity in a pod, then look for it in the event stream.
-          kubectl run probe --image=busybox:1.37 --restart=Never -- sh -c 'sleep 5; echo done'
-          kubectl wait pod/probe --for=jsonpath='{.status.phase}'=Succeeded --timeout=2m
+          # Tetragon exports execs only for Swarm Agents (its export filter), and an idle Agent keeps
+          # exec-ing (heartbeat, broker polling): look for one of theirs carrying pod metadata.
           for _ in $(seq 1 30); do
-            # One Tetragon pod per node: read them all, the probe's node is not known.
+            # One Tetragon pod per node: read them all, the Agents' node is not known.
             if kubectl -n kube-system logs -l app.kubernetes.io/name=tetragon -c export-stdout \
                 --tail=-1 --max-log-requests=10 \
-                | grep -q '"pod":{[^}]*"name":"probe"'; then
+                | grep -q '"pod":{[^}]*"name":"demo-\(worker\|orchestrator\)-'; then
               echo "event with pod metadata found"; exit 0
             fi
             sleep 5
@@ -130,6 +130,8 @@ jobs:
                 outOfSync: [.status.resources[]? | select(.status != "Synced") | {kind, name, status, message}]}' || true
           kubectl -n kube-system exec ds/tetragon -c tetragon -- tetra tracingpolicy list || true
           kubectl -n outside-world get pods,svc -o wide || true
+          kubectl -n monitoring get pods -o wide || true
+          kubectl -n monitoring logs ds/alloy --tail=40 || true
           kubectl -n kube-system logs -l app.kubernetes.io/name=tetragon -c tetragon --tail=60 --max-log-requests=10 | grep -iE 'error|fail' || true
       - name: task down
         if: always()
