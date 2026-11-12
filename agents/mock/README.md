@@ -7,6 +7,10 @@ A bash stand-in for an AI Agent that costs no tokens. One image plays both roles
 
 Protocol and broker keys: [`protocol/`](../../protocol/README.md).
 
+## Logs
+
+stdout carries only [Task events](../../protocol/README.md#task-events-logs-not-the-broker): one JSON line per Task transition (`started`, `succeeded`, `failed`, `lost`), tagged with `SWARM_NAME` (set by the Agent chart). Human-readable logs go to stderr.
+
 ## Adding a Scenario
 
 Add `scenarios/<name>.sh` with a bash shebang, followed by a line declaring the expected outcome, which the e2e harness reads:

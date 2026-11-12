@@ -46,3 +46,7 @@ repos:
         name: validate protocol examples (result)
         files: ^protocol/examples/result\..*\.json$
         args: [--schemafile, protocol/result.schema.json]
+      - id: check-jsonschema
+        name: validate protocol examples (task-event)
+        files: ^protocol/examples/task-event\..*\.json$
+        args: [--schemafile, protocol/task-event.schema.json]

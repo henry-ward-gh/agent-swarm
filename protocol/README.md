@@ -7,6 +7,7 @@ How Agents in a Swarm talk to each other through the Swarm's Valkey broker ([ADR
 | Goal | [`goal.schema.json`](goal.schema.json) | [`examples/goal.smoke.json`](examples/goal.smoke.json) |
 | Task | [`task.schema.json`](task.schema.json) | [`examples/task.benign-build.json`](examples/task.benign-build.json) |
 | Result | [`result.schema.json`](result.schema.json) | [`examples/result.failed-137.json`](examples/result.failed-137.json) |
+| Task event | [`task-event.schema.json`](task-event.schema.json) | [`examples/task-event.failed-137.json`](examples/task-event.failed-137.json) |
 
 ## Broker keys
 
@@ -25,3 +26,7 @@ How Agents in a Swarm talk to each other through the Swarm's Valkey broker ([ADR
 Delivery is at-most-once. A Task whose Worker's heartbeat expires while it sits in `running:<worker>` is recorded `lost` and never retried.
 
 Every message carries `"version": 1`.
+
+## Task events (logs, not the broker)
+
+Besides Results, every Agent writes one JSON line to **stdout** per Task transition, so the Swarm activity dashboard can show Task flow without a metrics endpoint. The Worker writes `started`, then `succeeded` or `failed`; the Orchestrator writes `lost` (a killed Worker cannot log its own death). Human-readable logs go to stderr, so stdout carries only these lines. An Adapter for a real Agent must emit the same lines (`SWARM_NAME` gives the `swarm` field).
