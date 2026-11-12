@@ -88,12 +88,42 @@ jobs:
           echo "root-info.targetRevision=$got"
           test "$got" = "$REVISION"
           test "$(kubectl -n argocd get configmap root-info -o jsonpath='{.data.imageTag}')" = "$REVISION"
+      - name: Platform apps are Synced and Healthy
+        run: |
+          for app in argocd tetragon secret-generator; do
+            # The child Application may not be rendered yet; wait for it to exist.
+            for _ in $(seq 1 60); do
+              kubectl -n argocd get applications.argoproj.io/$app >/dev/null 2>&1 && break
+              sleep 5
+            done
+            kubectl -n argocd wait applications.argoproj.io/$app \
+              --for=jsonpath='{.status.sync.status}'=Synced --timeout=8m
+            kubectl -n argocd wait applications.argoproj.io/$app \
+              --for=jsonpath='{.status.health.status}'=Healthy --timeout=8m
+          done
+      - name: Tetragon events carry pod metadata
+        run: |
+          kubectl -n kube-system rollout status ds/tetragon --timeout=5m
+          # Generate process activity in a pod, then look for it in the event stream.
+          kubectl run probe --image=busybox:1.37 --restart=Never -- sh -c 'sleep 5; echo done'
+          kubectl wait pod/probe --for=jsonpath='{.status.phase}'=Succeeded --timeout=2m
+          for _ in $(seq 1 30); do
+            # One Tetragon pod per node: read them all, the probe's node is not known.
+            if kubectl -n kube-system logs -l app.kubernetes.io/name=tetragon -c export-stdout \
+                --tail=-1 --max-log-requests=10 \
+                | grep -q '"pod":{[^}]*"name":"probe"'; then
+              echo "event with pod metadata found"; exit 0
+            fi
+            sleep 5
+          done
+          echo "no Tetragon event carried pod metadata" >&2; exit 1
       - name: Diagnostics
         if: failure()
         run: |
           kubectl -n argocd get applications.argoproj.io -o wide || true
           kubectl -n argocd get applications.argoproj.io root -o yaml || true
           kubectl -n argocd get pods -o wide || true
+          kubectl -n kube-system logs -l app.kubernetes.io/name=tetragon -c export-stdout --tail=20 --max-log-requests=10 || true
       - name: task down
         if: always()
         run: task down

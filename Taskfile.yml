@@ -86,7 +86,7 @@ tasks:
     deps: [charts:deps]
     cmds:
       - helm lint agents/charts/agent agents/charts/swarm gitops/root
-      - helm template root gitops/root -n argocd | kubeconform -strict -summary
+      - scripts/validate-root.sh
       - helm template {{.SWARM_NAME}} agents/charts/swarm -n {{.SWARM_NAMESPACE}} | kubeconform -strict -summary
       - >-
         helm template {{.SWARM_NAME}} agents/charts/swarm -n {{.SWARM_NAMESPACE}}
