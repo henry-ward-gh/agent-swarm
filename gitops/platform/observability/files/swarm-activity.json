@@ -308,7 +308,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "clamp_min((sum(count_over_time({event_type=\"task_event\", swarm=~\"$swarm\", state=\"started\"}[$__range])) or vector(0)) - (sum(count_over_time({event_type=\"task_event\", swarm=~\"$swarm\", state=\"succeeded\"}[$__range])) or vector(0)) - (sum(count_over_time({event_type=\"task_event\", swarm=~\"$swarm\", state=\"failed\"}[$__range])) or vector(0)) - (sum(count_over_time({event_type=\"task_event\", swarm=~\"$swarm\", state=\"lost\"}[$__range])) or vector(0)), 0)",
+          "expr": "count(sum by (swarm, task_id) (count_over_time({event_type=\"task_event\", swarm=~\"$swarm\", state=\"started\"} | json [$__range])) unless on (swarm, task_id) sum by (swarm, task_id) (count_over_time({event_type=\"task_event\", swarm=~\"$swarm\", state=~\"succeeded|failed|lost\"} | json [$__range]))) or vector(0)",
           "queryType": "instant",
           "instant": true
         }
@@ -340,7 +340,7 @@
         },
         "overrides": []
       },
-      "description": "Starts minus finishes (succeeded, failed, lost) inside the selected time range, never below zero. Ignores the role filter: starts come from Workers, `lost` from the Orchestrator. A Task that started before the range and finishes inside it is not counted."
+      "description": "Tasks with a `started` event but no `succeeded`, `failed` or `lost` event for the same swarm and task_id, both inside the selected time range. A Task that started before the range is not counted, even if it is still running. Ignores the role filter: starts come from Workers, `lost` from the Orchestrator."
     },
     {
       "id": 6,

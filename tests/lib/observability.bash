@@ -41,3 +41,18 @@ eventually() {
     sleep 3
   done
 }
+
+# dashboard_loki_exprs <dashboard.json> <swarm> — every Loki query in the dashboard, with Grafana's variables
+# filled in (all roles, a 1 h range, a 1 m interval).
+dashboard_loki_exprs() {
+  jq -r --arg swarm "$2" '.panels[].targets[]? | select(.datasource.type == "loki") | .expr
+    | gsub("\\$swarm"; $swarm) | gsub("\\$role"; ".*") | gsub("\\$__range"; "1h") | gsub("\\$__interval"; "1m")' "$1"
+}
+
+# loki_range_ok <logql> — Loki accepts the query (as a range query, so log and metric queries both work).
+loki_range_ok() {
+  local now out
+  now=$(date +%s)
+  out=$(kubectl get --raw "/api/v1/namespaces/monitoring/services/loki:3100/proxy/loki/api/v1/query_range?query=$(jq -rn --arg q "$1" '$q | @uri')&start=$((now - 3600))&end=$now&step=60&limit=5") || return 1
+  [[ "$(jq -r .status <<<"$out")" == "success" ]]
+}

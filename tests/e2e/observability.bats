@@ -5,6 +5,7 @@
 
 setup() {
   load ../lib/observability
+  REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
   SWARM="${SWARM_NAMESPACE:-swarm-demo}"
   SWARM="${SWARM#swarm-}"
 }
@@ -34,4 +35,14 @@ swarm_events() { echo "sum(count_over_time({swarm=\"$SWARM\", $1} ${2:-} [3h]))"
 
 @test "Prometheus counts the Guardrail policy hits" {
   eventually 120 prom_has_series 'tetragon_policy_events_total{policy=~"guardrail-.+"}'
+}
+
+@test "every Loki query in the Swarm activity dashboard is valid LogQL" {
+  local expr n=0
+  while IFS= read -r expr; do
+    n=$((n + 1))
+    run loki_range_ok "$expr"
+    [ "$status" -eq 0 ] || { echo "Loki rejected: $expr"; return 1; }
+  done < <(dashboard_loki_exprs "$REPO_ROOT/gitops/platform/observability/files/swarm-activity.json" "$SWARM")
+  [ "$n" -ge 6 ]
 }
