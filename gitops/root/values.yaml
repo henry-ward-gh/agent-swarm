@@ -37,6 +37,14 @@ platform:
       tetragon:
         # kind mounts the node's /proc at /procHost (terraform/modules/cluster-kind).
         hostProcPath: /procHost
+        # kind nodes share the host's bpffs (terraform/modules/cluster-kind), so every Tetragon
+        # agent would pin a policy at the same path and the second to load fails with "file exists".
+        # A per-node bpf dir keeps each agent's pins apart.
+        extraEnv:
+          - name: TETRAGON_BPF_DIR
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
   secret-generator:
     wave: -1
     namespace: secret-generator
