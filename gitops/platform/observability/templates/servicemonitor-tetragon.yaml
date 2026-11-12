@@ -1,0 +1,20 @@
+# Scrapes the Tetragon agents' metrics Service (kube-system/tetragon, port `metrics`). Our own object
+# rather than Tetragon's chart option, so Tetragon doesn't depend on the Prometheus CRDs being there first.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: tetragon
+  labels:
+    app.kubernetes.io/part-of: agent-swarm
+spec:
+  namespaceSelector:
+    matchNames:
+      - kube-system
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tetragon
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      honorLabels: true

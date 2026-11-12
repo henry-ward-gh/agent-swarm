@@ -1,0 +1,535 @@
+{
+  "uid": "swarm-activity",
+  "title": "Swarm activity",
+  "tags": [
+    "agent-swarm"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "refresh": "10s",
+  "timezone": "browser",
+  "annotations": {
+    "list": [
+      {
+        "name": "Guardrail kills",
+        "datasource": {
+          "type": "loki",
+          "uid": "loki"
+        },
+        "enable": true,
+        "iconColor": "red",
+        "expr": "{event_type=\"process_kprobe\", swarm=~\"$swarm\", role=~\"$role\"}",
+        "titleFormat": "Guardrail {{policy}}",
+        "textFormat": "{{swarm}}"
+      }
+    ]
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "swarm",
+        "label": "swarm",
+        "type": "query",
+        "datasource": {
+          "type": "loki",
+          "uid": "loki"
+        },
+        "query": "label_values(swarm)",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "sort": 1
+      },
+      {
+        "name": "role",
+        "label": "role",
+        "type": "custom",
+        "query": "orchestrator,worker",
+        "refresh": 0,
+        "includeAll": true,
+        "allValue": "orchestrator|worker",
+        "multi": true,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "sort": 1,
+        "options": [],
+        "description": "All = the two Agent roles. The Swarm also has a broker (Valkey), which is not an Agent and never shown here."
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Tasks started",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({event_type=\"task_event\", swarm=~\"$swarm\", role=~\"$role\", state=\"started\"}[$__range])) or vector(0)",
+          "queryType": "instant",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Succeeded",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({event_type=\"task_event\", swarm=~\"$swarm\", role=~\"$role\", state=\"succeeded\"}[$__range])) or vector(0)",
+          "queryType": "instant",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Failed",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({event_type=\"task_event\", swarm=~\"$swarm\", role=~\"$role\", state=\"failed\"}[$__range])) or vector(0)",
+          "queryType": "instant",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Lost",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({event_type=\"task_event\", swarm=~\"$swarm\", role=~\"$role\", state=\"lost\"}[$__range])) or vector(0)",
+          "queryType": "instant",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Started, not finished",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "count(sum by (swarm, task_id) (count_over_time({event_type=\"task_event\", swarm=~\"$swarm\", state=\"started\"} | json [$__range])) unless on (swarm, task_id) sum by (swarm, task_id) (count_over_time({event_type=\"task_event\", swarm=~\"$swarm\", state=~\"succeeded|failed|lost\"} | json [$__range]))) or vector(0)",
+          "queryType": "instant",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "yellow",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Tasks with a `started` event but no `succeeded`, `failed` or `lost` event for the same swarm and task_id, both inside the selected time range. A Task that started before the range is not counted, even if it is still running. Ignores the role filter: starts come from Workers, `lost` from the Orchestrator."
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Guardrail kills",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({event_type=\"process_kprobe\", swarm=~\"$swarm\", role=~\"$role\"}[$__range])) or vector(0)",
+          "queryType": "instant",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Guardrail kills by policy",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "range",
+          "legendFormat": "{{policy}}",
+          "expr": "sum by (policy) (count_over_time({event_type=\"process_kprobe\", swarm=~\"$swarm\", role=~\"$role\"}[$__interval]))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "description": "Counted from the Guardrail events in Loki, so a policy's first hit shows (Tetragon's policy counter starts at 1, which Prometheus' increase() can't see)."
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Process execs per second, by Agent pod",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "legendFormat": "{{pod}}",
+          "expr": "sum by (pod) (rate(tetragon_events_total{event_type=\"PROCESS_EXEC\", namespace=~\"swarm-($swarm)\", pod=~\".*-($role)-.*\"}[1m]))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "type": "logs",
+      "title": "Guardrail events",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "range",
+          "expr": "{event_type=\"process_kprobe\", swarm=~\"$swarm\", role=~\"$role\"} | json | line_format \"{{.process_kprobe_action}}  {{.process_kprobe_policy_name}}  {{.process_kprobe_process_pod_name}}  {{.process_kprobe_process_binary}}  {{.process_kprobe_function_name}}\""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      }
+    },
+    {
+      "id": 10,
+      "type": "logs",
+      "title": "Tasks",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "range",
+          "expr": "{event_type=\"task_event\", swarm=~\"$swarm\", role=~\"$role\"} | json | line_format \"{{.state}}  {{.scenario}}  exit={{.exit}}  {{.worker}}  {{.task_id}}\""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      }
+    }
+  ]
+}

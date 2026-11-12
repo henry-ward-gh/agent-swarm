@@ -28,11 +28,14 @@ task setup               # install git hooks
 task lint                # run all linters, as CI does
 task up                  # kind cluster + Argo CD following main (task down to remove)
 task argocd:ui           # Argo CD UI on localhost:8080
+task grafana:ui          # Grafana (Swarm activity dashboard) on localhost:3000, admin / admin
 task images:load         # build the Mock Agent image and load it into kind
 task goal -- smoke --wait 60   # submit a Goal to the demo Swarm
 ```
 
 See [`agents/`](agents/) to run a Swarm.
+
+Locally the cluster runs on [Colima](https://github.com/abiosoft/colima). The platform includes Prometheus, Grafana, Loki and Alloy as well as Tetragon, so give the VM room — `colima start --memory 8` is a safe starting point (an estimate, not a measurement). Open the dashboard with `task grafana:ui`.
 
 Commits follow [Conventional Commits](https://www.conventionalcommits.org).
 

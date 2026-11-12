@@ -45,6 +45,153 @@ platform:
             valueFrom:
               fieldRef:
                 fieldPath: spec.nodeName
+        # What Tetragon exports (to stdout, where Alloy ships it to Loki; the e2e harness reads it too).
+        # Every kprobe event (the Guardrails are the only kprobe policies) plus execs by Swarm Agents (pods in a
+        # swarm-* namespace named like an Agent: `namespace_regex` and `pod_regex` in one rule must both match).
+        # Tetragon's default denylist (host, kube-system, cilium namespaces) stays in force.
+        exportAllowList: |-
+          {"event_set":["PROCESS_KPROBE"]}
+          {"event_set":["PROCESS_EXEC"],"namespace_regex":["^swarm-"],"pod_regex":["^.+-(orchestrator|worker)-[a-z0-9]+-[a-z0-9]+$"]}
+  # Observability for the Swarm activity dashboard: Prometheus + Grafana, Loki and Alloy all live in
+  # `monitoring`. Short retention, nothing persisted: it's a demo, not a store.
+  kube-prometheus-stack:
+    wave: -1
+    namespace: monitoring
+    prune: true
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    version: 93.2.2
+    values:
+      # The operator mounts the webhook's TLS Secret, which only the (disabled) patch Job creates, so
+      # TLS goes off with the webhooks or the operator Pod never starts.
+      prometheusOperator:
+        admissionWebhooks:
+          enabled: false
+        tls:
+          enabled: false
+      alertmanager:
+        enabled: false
+      nodeExporter:
+        enabled: false
+      kubeStateMetrics:
+        enabled: false
+      defaultRules:
+        create: false
+      # Only Tetragon (scraped via the observability chart's ServiceMonitor) matters; skip the Kubernetes
+      # component scrapes and their dashboards.
+      kubeApiServer:
+        enabled: false
+      kubelet:
+        enabled: false
+      kubeControllerManager:
+        enabled: false
+      kubeScheduler:
+        enabled: false
+      kubeProxy:
+        enabled: false
+      kubeEtcd:
+        enabled: false
+      coreDns:
+        enabled: false
+      grafana:
+        defaultDashboardsEnabled: false
+        # Local demo only; reach Grafana with `task grafana:ui`.
+        adminPassword: admin
+      prometheus:
+        prometheusSpec:
+          retention: 6h
+          # Select every ServiceMonitor, not just ones carrying this release's label.
+          serviceMonitorSelectorNilUsesHelmValues: false
+          podMonitorSelectorNilUsesHelmValues: false
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+  # Loki's OSS chart moved to grafana-community in March 2026; grafana/helm-charts only carries the
+  # Enterprise Logs one now.
+  loki:
+    wave: -1
+    namespace: monitoring
+    prune: true
+    repoURL: https://grafana-community.github.io/helm-charts
+    chart: loki
+    version: 21.2.1
+    values:
+      deploymentMode: Monolithic
+      loki:
+        auth_enabled: false
+        commonConfig:
+          replication_factor: 1
+        storage:
+          type: filesystem
+        # Nothing is persisted; keep the last 6 hours, like Prometheus.
+        limits_config:
+          retention_period: 6h
+        compactor:
+          retention_enabled: true
+          delete_request_store: filesystem
+        schemaConfig:
+          configs:
+            - from: "2024-04-01"
+              store: tsdb
+              object_store: filesystem
+              schema: v13
+              index:
+                prefix: loki_index_
+                period: 24h
+      singleBinary:
+        replicas: 1
+        persistence:
+          enabled: false
+      # The chart refuses to render with any of these above zero in Monolithic mode.
+      read:
+        replicas: 0
+      write:
+        replicas: 0
+      backend:
+        replicas: 0
+      # Query Loki directly at loki.monitoring.svc:3100; no gateway, caches, canary or tests.
+      gateway:
+        enabled: false
+      chunksCache:
+        enabled: false
+      resultsCache:
+        enabled: false
+      lokiCanary:
+        enabled: false
+      test:
+        enabled: false
+  # The observability chart's ConfigMaps (Alloy config, Loki datasource, dashboard) and the Tetragon
+  # ServiceMonitor. Wave 0: the ServiceMonitor CRD comes from kube-prometheus-stack (wave -1).
+  observability:
+    wave: 0
+    namespace: monitoring
+    prune: true
+    path: gitops/platform/observability
+  # Same wave and namespace as `observability`: the Alloy pods wait for its `alloy-config` ConfigMap.
+  alloy:
+    wave: 0
+    namespace: monitoring
+    prune: true
+    repoURL: https://grafana.github.io/helm-charts
+    chart: alloy
+    version: 1.15.0
+    values:
+      crds:
+        create: false
+      alloy:
+        configMap:
+          create: false
+          name: alloy-config
+          key: config.alloy
+        extraEnv:
+          # Keep LOKI_URL in step with gitops/platform/observability/values.yaml `lokiURL`.
+          - name: LOKI_URL
+            value: http://loki.monitoring.svc:3100
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
   secret-generator:
     wave: -1
     namespace: secret-generator

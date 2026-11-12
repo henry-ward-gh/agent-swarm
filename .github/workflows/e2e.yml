@@ -138,6 +138,7 @@ jobs:
           mkdir -p diagnostics
           kubectl -n argocd get applications.argoproj.io -o yaml >diagnostics/argocd-applications.yaml || true
           kubectl get pods -A -o wide >diagnostics/pods.txt || true
+          kubectl -n monitoring logs ds/alloy --tail=300 >diagnostics/alloy.log || true
           kubectl -n swarm-demo logs deploy/demo-orchestrator --tail=300 >diagnostics/orchestrator.log || true
           kubectl -n swarm-demo logs deploy/demo-worker --all-containers --prefix --tail=300 >diagnostics/workers.log || true
           kubectl -n swarm-demo get tracingpolicynamespaced -o yaml >diagnostics/tracingpolicies.yaml || true

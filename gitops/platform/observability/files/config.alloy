@@ -1,0 +1,206 @@
+// Ships two kinds of pod logs to Loki, from the pods on this node only (Alloy runs as a DaemonSet):
+//   - Tetragon's exported events (Guardrail kills, Swarm execs)    -> event_type=process_kprobe|process_exec
+//   - the Agents' Task events (protocol/task-event.schema.json)    -> event_type=task_event
+// LOKI_URL and NODE_NAME come from the Alloy app's env (gitops/root/values.yaml).
+// Tetragon's own export filter (gitops/root/values.yaml) already limits what it emits.
+
+discovery.kubernetes "pods" {
+	role = "pod"
+
+	selectors {
+		role  = "pod"
+		field = "spec.nodeName=" + sys.env("NODE_NAME")
+	}
+}
+
+// ---------- Tetragon ----------
+
+discovery.relabel "tetragon" {
+	targets = discovery.kubernetes.pods.targets
+	// loki.source.kubernetes only reads these __meta labels; the public ones the selectors and queries use
+	// have to be set here.
+	rule {
+		source_labels = ["__meta_kubernetes_pod_container_name"]
+		target_label  = "container"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_namespace"]
+		target_label  = "namespace"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "pod"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_namespace"]
+		regex         = "kube-system"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+		regex         = "tetragon"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_container_name"]
+		regex         = "export-stdout"
+		action        = "keep"
+	}
+}
+
+loki.source.kubernetes "tetragon" {
+	targets    = discovery.relabel.tetragon.output
+	forward_to = [loki.process.tetragon.receiver]
+}
+
+loki.process "tetragon" {
+	forward_to = [loki.write.loki.receiver]
+
+	// One JSON object per line; its single top-level key names the event kind. Labels are only
+	// extracted inside each match, so a missing field can't leak an empty or "<no value>" label.
+	stage.match {
+		selector = `{container="export-stdout"} |~ "^\\{\"process_kprobe\""`
+
+		stage.static_labels {
+			values = {event_type = "process_kprobe"}
+		}
+
+		stage.json {
+			expressions = {
+				policy    = "process_kprobe.policy_name",
+				pod       = "process_kprobe.process.pod.name",
+				namespace = "process_kprobe.process.pod.namespace",
+			}
+		}
+		// Swarms live in namespace swarm-<name>; their pods are <name>-<role>-<hash>-<hash>.
+		stage.regex {
+			source     = "namespace"
+			expression = "^swarm-(?P<swarm>.+)$"
+		}
+
+		stage.regex {
+			source     = "pod"
+			expression = "^.+-(?P<role>orchestrator|worker)-[a-z0-9]+-[a-z0-9]+$"
+		}
+
+		stage.labels {
+			values = {policy = "", swarm = "", role = ""}
+		}
+	}
+
+	stage.match {
+		selector = `{container="export-stdout"} |~ "^\\{\"process_exec\""`
+
+		stage.static_labels {
+			values = {event_type = "process_exec"}
+		}
+
+		stage.json {
+			expressions = {
+				pod       = "process_exec.process.pod.name",
+				namespace = "process_exec.process.pod.namespace",
+			}
+		}
+
+		stage.regex {
+			source     = "namespace"
+			expression = "^swarm-(?P<swarm>.+)$"
+		}
+
+		stage.regex {
+			source     = "pod"
+			expression = "^.+-(?P<role>orchestrator|worker)-[a-z0-9]+-[a-z0-9]+$"
+		}
+
+		stage.labels {
+			values = {swarm = "", role = ""}
+		}
+	}
+}
+
+// ---------- Agents' Task events ----------
+
+discovery.relabel "agents" {
+	targets = discovery.kubernetes.pods.targets
+	// loki.source.kubernetes only reads these __meta labels; the public ones the selectors and queries use
+	// have to be set here.
+	rule {
+		source_labels = ["__meta_kubernetes_pod_container_name"]
+		target_label  = "container"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_namespace"]
+		target_label  = "namespace"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "pod"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+		regex         = "agent"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_label_agent_swarm_io_swarm"]
+		regex         = ".+"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_container_name"]
+		regex         = "agent"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_label_agent_swarm_io_swarm"]
+		target_label  = "swarm"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_label_agent_swarm_io_role"]
+		target_label  = "role"
+	}
+}
+
+loki.source.kubernetes "agents" {
+	targets    = discovery.relabel.agents.output
+	forward_to = [loki.process.agents.receiver]
+}
+
+loki.process "agents" {
+	forward_to = [loki.write.loki.receiver]
+
+	// stderr carries the Agent's human-readable log; only the JSON lines on stdout are Task events.
+	stage.drop {
+		expression = "^[^{]"
+	}
+
+	stage.json {
+		expressions = {state = "state"}
+	}
+
+	stage.static_labels {
+		values = {event_type = "task_event"}
+	}
+
+	stage.labels {
+		values = {state = ""}
+	}
+}
+
+loki.write "loki" {
+	endpoint {
+		url = sys.env("LOKI_URL") + "/loki/api/v1/push"
+	}
+}

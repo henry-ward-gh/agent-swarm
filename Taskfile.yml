@@ -61,6 +61,11 @@ tasks:
         -o jsonpath='{.data.password}' | base64 -d)"
       - kubectl -n argocd port-forward svc/argocd-server 8080:80
 
+  grafana:ui:
+    desc: Open Grafana (Swarm activity dashboard) on http://localhost:3000 — admin / admin
+    cmds:
+      - kubectl -n monitoring port-forward svc/kube-prometheus-stack-grafana 3000:80
+
   tf:test:
     desc: Run the Terraform module tests (mocked providers, no cluster needed)
     cmds:
@@ -99,9 +104,12 @@ tasks:
     desc: Lint the charts and validate rendered manifests
     deps: [charts:deps]
     cmds:
-      - helm lint agents/charts/agent agents/charts/swarm gitops/root gitops/platform/outside-world
+      - helm lint agents/charts/agent agents/charts/swarm gitops/root gitops/platform/outside-world gitops/platform/observability
       - helm template outside-world gitops/platform/outside-world -n outside-world | kubeconform -strict -summary
       - scripts/validate-root.sh
+      # Observability: the ServiceMonitor kind needs the CRD schema catalog; the dashboard must be JSON;
+      # the Alloy config must parse (image tag = the Alloy chart's appVersion in gitops/root/values.yaml).
+      - scripts/validate-observability.sh
       - helm template {{.SWARM_NAME}} agents/charts/swarm -n {{.SWARM_NAMESPACE}} | kubeconform -strict -summary
       - >-
         helm template {{.SWARM_NAME}} agents/charts/swarm -n {{.SWARM_NAMESPACE}}
