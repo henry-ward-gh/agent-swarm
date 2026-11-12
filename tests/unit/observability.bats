@@ -67,6 +67,7 @@ JSON
 }
 
 @test "grafana_get authenticates and uses the forwarded port; grafana_succeeds needs a success status" {
+  # shellcheck disable=SC2016 # the fake curl script is meant to expand $* when it runs, not here
   printf '#!/usr/bin/env bash\necho "$*" >>"%s/curl-args"\necho "$FAKE_BODY"\n' "$BATS_TEST_TMPDIR" >"$BIN/curl"; chmod +x "$BIN/curl"
   GRAFANA_PF_PID=$$ GRAFANA_PORT=4242 FAKE_BODY='{"status":"success"}' grafana_succeeds /api/x
   grep -q -- "-u admin:admin http://127.0.0.1:4242/api/x" "$BATS_TEST_TMPDIR/curl-args"
