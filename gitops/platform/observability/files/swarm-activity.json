@@ -290,7 +290,7 @@
     {
       "id": 5,
       "type": "stat",
-      "title": "Running",
+      "title": "Started, not finished",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -308,7 +308,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "(sum(count_over_time({event_type=\"task_event\", swarm=~\"$swarm\", role=~\"$role\", state=\"started\"}[$__range])) or vector(0)) - (sum(count_over_time({event_type=\"task_event\", swarm=~\"$swarm\", role=~\"$role\", state=\"succeeded\"}[$__range])) or vector(0)) - (sum(count_over_time({event_type=\"task_event\", swarm=~\"$swarm\", role=~\"$role\", state=\"failed\"}[$__range])) or vector(0)) - (sum(count_over_time({event_type=\"task_event\", swarm=~\"$swarm\", role=~\"$role\", state=\"lost\"}[$__range])) or vector(0))",
+          "expr": "clamp_min((sum(count_over_time({event_type=\"task_event\", swarm=~\"$swarm\", state=\"started\"}[$__range])) or vector(0)) - (sum(count_over_time({event_type=\"task_event\", swarm=~\"$swarm\", state=\"succeeded\"}[$__range])) or vector(0)) - (sum(count_over_time({event_type=\"task_event\", swarm=~\"$swarm\", state=\"failed\"}[$__range])) or vector(0)) - (sum(count_over_time({event_type=\"task_event\", swarm=~\"$swarm\", state=\"lost\"}[$__range])) or vector(0)), 0)",
           "queryType": "instant",
           "instant": true
         }
@@ -339,7 +339,8 @@
           }
         },
         "overrides": []
-      }
+      },
+      "description": "Starts minus finishes (succeeded, failed, lost) inside the selected time range, never below zero. Ignores the role filter: starts come from Workers, `lost` from the Orchestrator. A Task that started before the range and finishes inside it is not counted."
     },
     {
       "id": 6,
@@ -400,8 +401,8 @@
       "type": "timeseries",
       "title": "Guardrail kills by policy",
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "loki",
+        "uid": "loki"
       },
       "gridPos": {
         "x": 0,
@@ -413,11 +414,12 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
+            "type": "loki",
+            "uid": "loki"
           },
+          "queryType": "range",
           "legendFormat": "{{policy}}",
-          "expr": "sum by (policy) (increase(tetragon_policy_events_total{policy=~\"guardrail-.*\", namespace=~\"swarm-($swarm)\", pod=~\".*-($role)-.*\"}[1m]))"
+          "expr": "sum by (policy) (count_over_time({event_type=\"process_kprobe\", swarm=~\"$swarm\", role=~\"$role\"}[$__interval]))"
         }
       ],
       "fieldConfig": {
@@ -429,7 +431,8 @@
           "decimals": 0
         },
         "overrides": []
-      }
+      },
+      "description": "Counted from the Guardrail events in Loki, so a policy's first hit shows (Tetragon's policy counter starts at 1, which Prometheus' increase() can't see)."
     },
     {
       "id": 8,

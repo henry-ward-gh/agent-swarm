@@ -81,7 +81,7 @@ jobs:
       - name: Argo CD syncs the root app at this commit
         run: |
           kubectl -n argocd wait applications.argoproj.io/root \
-            --for=jsonpath='{.status.sync.status}'=Synced --timeout=5m
+            --for=jsonpath='{.status.sync.status}'=Synced --timeout=12m
           # Healthy only once every child is, including the observability stack's image pulls.
           kubectl -n argocd wait applications.argoproj.io/root \
             --for=jsonpath='{.status.health.status}'=Healthy --timeout=12m

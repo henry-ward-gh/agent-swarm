@@ -17,6 +17,22 @@ discovery.kubernetes "pods" {
 
 discovery.relabel "tetragon" {
 	targets = discovery.kubernetes.pods.targets
+	// loki.source.kubernetes only reads these __meta labels; the public ones the selectors and queries use
+	// have to be set here.
+	rule {
+		source_labels = ["__meta_kubernetes_pod_container_name"]
+		target_label  = "container"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_namespace"]
+		target_label  = "namespace"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "pod"
+	}
 
 	rule {
 		source_labels = ["__meta_kubernetes_namespace"]
@@ -111,6 +127,22 @@ loki.process "tetragon" {
 
 discovery.relabel "agents" {
 	targets = discovery.kubernetes.pods.targets
+	// loki.source.kubernetes only reads these __meta labels; the public ones the selectors and queries use
+	// have to be set here.
+	rule {
+		source_labels = ["__meta_kubernetes_pod_container_name"]
+		target_label  = "container"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_namespace"]
+		target_label  = "namespace"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "pod"
+	}
 
 	rule {
 		source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]

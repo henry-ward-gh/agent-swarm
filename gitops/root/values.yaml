@@ -61,9 +61,12 @@ platform:
     chart: kube-prometheus-stack
     version: 93.2.2
     values:
-      # The pre-install patch Jobs add nothing here and just slow the sync.
+      # The operator mounts the webhook's TLS Secret, which only the (disabled) patch Job creates, so
+      # TLS goes off with the webhooks or the operator Pod never starts.
       prometheusOperator:
         admissionWebhooks:
+          enabled: false
+        tls:
           enabled: false
       alertmanager:
         enabled: false
