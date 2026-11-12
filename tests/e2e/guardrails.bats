@@ -18,7 +18,7 @@ setup() {
 
 # check_plan <plan> — run the Goal, then apply the verdict to each Task in plan order.
 check_plan() {
-  local plan="$1" out results scenarios i n expect attempt failures sink=0
+  local plan="$1" out results scenarios i n expect failures sink=0
   out=$("$REPO_ROOT/scripts/goal.sh" "$plan" --wait 150) || { echo "goal.sh $plan failed (exit $?)"; return 1; }
   results=$(tail -n +2 <<<"$out")
   printf '%s\n' "$results" >"$ARTIFACTS/results-$plan.json"
@@ -31,7 +31,7 @@ check_plan() {
   fi
 
   # Tetragon exports events a moment after they happen: retry the verdict before giving up.
-  for attempt in 1 2 3 4 5 6; do
+  for _ in 1 2 3 4 5 6; do
     sleep 4
     collect_events "$ARTIFACTS/events-$plan.jsonl"
     failures=""
