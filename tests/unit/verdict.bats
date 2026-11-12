@@ -109,9 +109,34 @@ result() { # <status> <exitCode> <worker> <start> <finish>
   [ "$status" -eq 0 ]
 }
 
-@test "a rogue Task is still Blocked when its kill lands a hair outside the window (clock skew)" {
+@test "a kill just outside the Task's window does not make it Blocked (no slack for rogue Tasks)" {
+  # worker-c was killed at 10:02:00.100; this Task only started at 10:02:00.300.
   run verdict "blocked guardrail-workspace-exec" "$(result failed 137 worker-c 2026-11-12T10:02:00.300Z 2026-11-12T10:02:00.400Z)" "$EVENTS" "$NS"
-  [ "$status" -eq 0 ]
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"no guardrail-workspace-exec event"* ]]
+}
+
+@test "guardrail_hits fails, rather than counting zero, when the event log is missing" {
+  run guardrail_hits "$BATS_TEST_TMPDIR/nope.jsonl" "" "$NS" worker-a 2026-11-12T10:00:00Z 2026-11-12T10:00:10Z
+  [ "$status" -ne 0 ]
+}
+
+@test "guardrail_hits fails when the event log is corrupt, even if earlier lines matched" {
+  { sed -n 1p "$EVENTS"; echo '{"process_kprobe": {"policy_name": "guardrail-eg'; } >"$BATS_TEST_TMPDIR/bad.jsonl"
+  run guardrail_hits "$BATS_TEST_TMPDIR/bad.jsonl" guardrail-egress "$NS" worker-a 2026-11-12T10:00:04.000Z 2026-11-12T10:00:06.000Z
+  [ "$status" -ne 0 ]
+}
+
+@test "a benign Task is not passed when the event log cannot be read" {
+  run verdict succeeded "$(result succeeded 0 worker-a 2026-11-12T10:30:00.000Z 2026-11-12T10:30:10.000Z)" "$BATS_TEST_TMPDIR/nope.jsonl" "$NS"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"could not read"* ]]
+}
+
+@test "a rogue Task is not judged when the event log cannot be read" {
+  run verdict "blocked guardrail-egress" "$(result failed 137 worker-a 2026-11-12T10:00:04.000Z 2026-11-12T10:00:06.000Z)" "$BATS_TEST_TMPDIR/nope.jsonl" "$NS"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"could not read"* ]]
 }
 
 @test "sink_empty accepts an empty sink and rejects one that received data" {
