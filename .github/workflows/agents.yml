@@ -10,7 +10,8 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Never cancel a push to main: its image still has to be published.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   IMAGE: agent-swarm/mock-agent
@@ -68,13 +69,76 @@ jobs:
           kubectl -n swarm-demo describe pods | tail -80 || true
 
   image:
+    # Every PR: build, sanity-check, scan (HIGH/CRITICAL with a fix gate the build). Pushes to main:
+    # also publish to GHCR (SHA, main, latest) and sign by digest with keyless cosign.
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write # push to GHCR (main only; downgraded on fork PRs)
+      id-token: write # keyless cosign signing (main only)
+    env:
+      REGISTRY_IMAGE: ghcr.io/${{ github.repository }}/mock-agent
     steps:
       - uses: actions/checkout@v7
       - name: Build
-        run: docker build -t "$IMAGE:ci" agents/mock
+        run: docker build -t "$IMAGE:ci" --build-arg AGENT_VERSION="$GITHUB_SHA" agents/mock
       - name: Image sanity
         run: |
-          docker run --rm "$IMAGE:ci" version
+          docker run --rm "$IMAGE:ci" version | grep -qx "mock-agent $GITHUB_SHA"
           docker run --rm --entrypoint id "$IMAGE:ci" | grep -q 'uid=10001'
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push
+        id: push
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          for tag in "$GITHUB_SHA" main latest; do
+            docker tag "$IMAGE:ci" "$REGISTRY_IMAGE:$tag"
+            docker push "$REGISTRY_IMAGE:$tag"
+          done
+          echo "ref=$(docker inspect --format '{{index .RepoDigests 0}}' "$REGISTRY_IMAGE:$GITHUB_SHA")" >>"$GITHUB_OUTPUT"
+      - name: Install cosign
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: sigstore/cosign-installer@v4
+      - name: Sign (keyless)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          IMAGE_REF: ${{ steps.push.outputs.ref }}
+        run: |
+          cosign sign --yes "$IMAGE_REF"
+          {
+            echo "### Published"
+            echo "\`$IMAGE_REF\` (also \`:main\`, \`:latest\`), signed with cosign keyless."
+            echo "Verify it with the command in agents/README.md."
+          } >>"$GITHUB_STEP_SUMMARY"
+
+  prune:
+    # Retention: keep the newest 60 package versions (about 30 images with their signatures) and
+    # never a version tagged main or latest. Separate job so a cleanup failure can't fail a publish.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Prune old versions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: scripts/ghcr-prune.sh "$GITHUB_REPOSITORY_OWNER" "${GITHUB_REPOSITORY#*/}/mock-agent" 60

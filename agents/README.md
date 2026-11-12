@@ -24,3 +24,15 @@ Without `broker.password` the chart commits an annotated Secret for the in-clust
 ## Guardrails
 
 Set `guardrails.enabled=true` (needs Tetragon and a pinned `broker.clusterIP`) and the Swarm chart renders the three Guardrails from [`policies/`](../policies/). The demo Swarm Application in `gitops/root` does this; `task up` then deploys Outside World, so `smoke` succeeds and each rogue Goal (`rogue-exfil`, `rogue-token-theft`, `rogue-dropped-binary`) fails with exit 137. `task test:e2e` checks that on a live cluster ([`tests/`](../tests/)).
+
+## Published image
+
+Every push to `main` publishes the Mock Agent to `ghcr.io/henry-ward-gh/agent-swarm/mock-agent`, tagged with the commit SHA, `main` and `latest`, after a Trivy scan (HIGH/CRITICAL with a fix fail the build — the same scan runs on every PR). Each image is signed by digest with keyless [cosign](https://docs.sigstore.dev); verify one with:
+
+```sh
+cosign verify ghcr.io/henry-ward-gh/agent-swarm/mock-agent:<sha> \
+  --certificate-identity-regexp 'https://github.com/henry-ward-gh/agent-swarm/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+Retention: the newest 60 package versions are kept (about 30 images, since each signature is a version too) and a version tagged `main` or `latest` is never pruned ([`scripts/ghcr-prune.sh`](../scripts/ghcr-prune.sh), run after each publish). CI and local runs don't pull from GHCR: they build a SHA-tagged image and `kind load` it.
