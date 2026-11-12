@@ -1,0 +1,6 @@
+apiVersion: v2
+name: outside-world
+description: In-cluster stand-ins for the Outside World — the Approved Destination (approved-api) and the Exfil Sink (exfil-sink). No internet needed in tests.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

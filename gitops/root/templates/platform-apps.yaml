@@ -1,6 +1,6 @@
 {{- /*
   One Application per entry in .Values.platform. Anything sourced from this
-  repo (Argo CD's values file, Swarm apps) follows .Values.targetRevision
+  repo (Argo CD's values file, `path:` entries such as Outside World and Swarms) follows .Values.targetRevision
   (ADR 0005) — never hard-code a revision here. Upstream charts (Tetragon,
   secret-generator) pin their own chart version via values.
 */}}
@@ -30,6 +30,21 @@ spec:
     - repoURL: {{ $.Values.repoURL }}
       targetRevision: {{ $.Values.targetRevision }}
       ref: values
+  {{- else if $app.path }}
+  {{- /* A chart in this repo: follows the root's revision, and (followImageTag) its image tag. */}}
+  {{- $values := deepCopy ($app.values | default dict) }}
+  {{- if $app.followImageTag }}
+  {{- $values = mustMergeOverwrite $values (dict "global" (dict "image" (dict "tag" $.Values.imageTag))) }}
+  {{- end }}
+  source:
+    repoURL: {{ $.Values.repoURL }}
+    targetRevision: {{ $.Values.targetRevision }}
+    path: {{ $app.path }}
+    {{- if $values }}
+    helm:
+      valuesObject:
+        {{- toYaml $values | nindent 8 }}
+    {{- end }}
   {{- else }}
   source:
     repoURL: {{ $app.repoURL }}

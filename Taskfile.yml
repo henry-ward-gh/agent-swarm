@@ -85,13 +85,29 @@ tasks:
     desc: Lint the charts and validate rendered manifests
     deps: [charts:deps]
     cmds:
-      - helm lint agents/charts/agent agents/charts/swarm gitops/root
+      - helm lint agents/charts/agent agents/charts/swarm gitops/root gitops/platform/outside-world
+      - helm template outside-world gitops/platform/outside-world -n outside-world | kubeconform -strict -summary
       - scripts/validate-root.sh
       - helm template {{.SWARM_NAME}} agents/charts/swarm -n {{.SWARM_NAMESPACE}} | kubeconform -strict -summary
       - >-
         helm template {{.SWARM_NAME}} agents/charts/swarm -n {{.SWARM_NAMESPACE}}
-        --set broker.clusterIP=10.96.100.10 --set broker.password=x
+        --set broker.clusterIP=10.96.0.110 --set broker.password=x
         | kubeconform -strict -summary
+      # Guardrails: TracingPolicyNamespaced has no published schema, so skip that kind only.
+      - >-
+        helm template {{.SWARM_NAME}} agents/charts/swarm -n {{.SWARM_NAMESPACE}}
+        --set guardrails.enabled=true --set broker.clusterIP=10.96.0.110 --set broker.password=x
+        --set 'worker.egress.allow={10.96.0.120:8080}'
+        | grep -c '^kind: TracingPolicyNamespaced' | grep -qx 3
+      - >-
+        helm template {{.SWARM_NAME}} agents/charts/swarm -n {{.SWARM_NAMESPACE}}
+        --set guardrails.enabled=true --set broker.clusterIP=10.96.0.110 --set broker.password=x
+        --set 'worker.egress.allow={10.96.0.120:8080}'
+        | kubeconform -strict -summary -skip TracingPolicyNamespaced
+      # Pinned IPs must be Service IPs, and the broker must be pinned, or the render fails (ADR 0003).
+      - 'if helm template x agents/charts/swarm --set guardrails.enabled=true --set broker.clusterIP=192.0.2.1 >/dev/null 2>&1; then echo "render accepted a pinned IP outside the Service CIDR" >&2; exit 1; fi'
+      - 'if helm template x agents/charts/swarm --set guardrails.enabled=true --set broker.clusterIP=10.96.0.110 --set ''worker.egress.allow={10.200.0.1:80}'' >/dev/null 2>&1; then echo "render accepted an unpinned egress IP" >&2; exit 1; fi'
+      - 'if helm template x agents/charts/swarm --set guardrails.enabled=true >/dev/null 2>&1; then echo "render accepted Guardrails without a pinned broker IP" >&2; exit 1; fi'
 
   goal:
     desc: 'Submit a Goal to the Swarm — task goal -- <plan> [--wait SECONDS]'

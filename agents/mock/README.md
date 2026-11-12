@@ -17,3 +17,5 @@ Add `scenarios/<name>.sh` with a bash shebang, followed by a line declaring the 
 ```
 
 Scenarios run with `cwd` = the Workspace and get `TASK_ID` / `GOAL_ID` in the environment. Reference them from a plan in `goals/`.
+
+Shipped Scenarios: `benign-build`, `benign-fetch` (calls `approved-api`), and the rogue `rogue-exfil`, `rogue-token-theft`, `rogue-dropped-binary`, each tripping a different Guardrail. Plans: `smoke` (both benign), `demo` (interleaved), and one per rogue Scenario.

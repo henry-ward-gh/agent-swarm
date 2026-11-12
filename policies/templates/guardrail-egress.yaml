@@ -1,0 +1,32 @@
+{{- if .Values.guardrails.enabled }}
+# Allowlist: an Agent connecting anywhere but the Swarm's broker or a declared Approved
+# Destination is killed before a byte is sent. tcp_connect sees the ClusterIP before kube-proxy
+# translation, hence pinned ClusterIPs (ADR 0003). Sigkill only: Override doesn't reach tcp_connect.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicyNamespaced
+metadata:
+  name: guardrail-egress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/part-of: agent-swarm
+spec:
+  podSelector:
+    {{- include "swarm.guardrailSelector" . | nindent 4 }}
+  kprobes:
+    - call: tcp_connect
+      syscall: false
+      args:
+        - index: 0
+          type: sock
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: NotDAddr
+              values:
+                - 127.0.0.1
+                {{- range include "swarm.egressIPs" . | fromJsonArray }}
+                - {{ . | quote }}
+                {{- end }}
+          matchActions:
+            - action: Sigkill
+{{- end }}

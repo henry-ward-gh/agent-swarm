@@ -116,6 +116,8 @@ jobs:
             sleep 5
           done
           echo "no Tetragon event carried pod metadata" >&2; exit 1
+      - name: Guardrails block rogue Scenarios
+        run: scripts/check-guardrails.sh
       - name: Diagnostics
         if: failure()
         run: |
@@ -123,6 +125,9 @@ jobs:
           kubectl -n argocd get applications.argoproj.io root -o yaml || true
           kubectl -n argocd get pods -o wide || true
           kubectl -n kube-system logs -l app.kubernetes.io/name=tetragon -c export-stdout --tail=20 --max-log-requests=10 || true
+          kubectl -n swarm-demo get pods,tracingpolicynamespaced -o wide || true
+          kubectl -n outside-world get pods,svc -o wide || true
+          kubectl -n kube-system logs -l app.kubernetes.io/name=tetragon -c tetragon --tail=60 --max-log-requests=10 | grep -iE 'error|fail' || true
       - name: task down
         if: always()
         run: task down

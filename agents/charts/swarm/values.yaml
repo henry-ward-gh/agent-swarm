@@ -30,3 +30,10 @@ broker:
     limits:
       cpu: 250m
       memory: 128Mi
+
+# Guardrails: Tetragon TracingPolicyNamespaced, templates in /policies (ADR 0003).
+# Off by default — they need Tetragon's CRDs on the cluster.
+guardrails:
+  enabled: false
+  # -- Service CIDR of the cluster (kind default); pinned IPs outside it fail the render.
+  serviceCIDR: 10.96.0.0/12

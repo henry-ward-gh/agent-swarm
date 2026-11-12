@@ -46,6 +46,8 @@ jobs:
         run: |
           docker build -t "$IMAGE:${GITHUB_SHA}" --build-arg AGENT_VERSION="${GITHUB_SHA}" agents/mock
           kind load docker-image "$IMAGE:${GITHUB_SHA}" --name agent-swarm
+      - name: Install Outside World (benign-fetch calls approved-api)
+        run: helm install outside-world gitops/platform/outside-world -n outside-world --create-namespace --wait --timeout 3m
       - name: Install the Swarm
         run: |
           helm dependency build agents/charts/swarm
