@@ -30,8 +30,12 @@ task_ids=()
 while [[ $SECONDS -lt $deadline ]]; do
   err=$(vk GET "goal:$goal_id:error")
   if [[ -n "$err" ]]; then echo "goal rejected: $err" >&2; exit 3; fi
-  mapfile -t task_ids < <(vk LRANGE "goal:$goal_id:tasks" 0 -1 | sed '/^$/d')
-  [[ ${#task_ids[@]} -gt 0 ]] && break
+  # The count is written after the last Task is queued; reading the list earlier can miss Tasks.
+  count=$(vk GET "goal:$goal_id:count")
+  if [[ -n "$count" ]]; then
+    mapfile -t task_ids < <(vk LRANGE "goal:$goal_id:tasks" 0 -1 | sed '/^$/d')
+    [[ ${#task_ids[@]} -eq "$count" ]] && break
+  fi
   sleep 1
 done
 

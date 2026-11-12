@@ -25,9 +25,11 @@ class Handler(BaseHTTPRequestHandler):
         if length < 0:
             self.close_connection = True
             return self.reply(400, {"error": "invalid Content-Length"})
+        # Read only a bounded prefix: an oversized POST must not exhaust memory and wipe the evidence.
         body = self.rfile.read(min(length, BODY_LIMIT)).decode("utf-8", "replace") if length else ""
-        if length > BODY_LIMIT:
-            self.close_connection = True
+        truncated = length > BODY_LIMIT
+        if truncated:
+            self.close_connection = True  # the unread remainder is never consumed
         if self.path == "/healthz":
             return self.reply(200, {"ok": True})
         if MODE == "exfil-sink":
@@ -35,7 +37,7 @@ class Handler(BaseHTTPRequestHandler):
                 with lock:
                     return self.reply(200, {"count": len(received), "items": list(received)})
             with lock:
-                received.append({"method": self.command, "path": self.path, "body": body[:BODY_LIMIT]})
+                received.append({"method": self.command, "path": self.path, "body": body, "truncated": truncated})
             return self.reply(200, {"received": True})
         return self.reply(200, {"ok": True, "stand_in_for": "an LLM API"})
 
