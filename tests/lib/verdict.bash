@@ -70,7 +70,7 @@ verdict() {
         echo "rogue Task was not killed: status $status, exit $code (wanted failed, 137)"
         return 1
       fi
-      hits=$(guardrail_hits "$events" "$policy" "$ns" "$worker" "$start" "$finish" 0.5)
+      hits=$(guardrail_hits "$events" "$policy" "$ns" "$worker" "$start" "$finish" 0)
       if [[ "$hits" -eq 0 ]]; then
         echo "no $policy event on $worker between $start and $finish: the kill was not a Guardrail's"
         return 1
