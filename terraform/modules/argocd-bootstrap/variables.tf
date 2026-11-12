@@ -57,3 +57,9 @@ variable "namespace" {
   type        = string
   default     = "argocd"
 }
+
+variable "tetragon_version" {
+  description = "Override gitops/root's Tetragon chart pin (platform.tetragon.version). Empty keeps the pin; the nightly e2e run sets the latest release."
+  type        = string
+  default     = ""
+}

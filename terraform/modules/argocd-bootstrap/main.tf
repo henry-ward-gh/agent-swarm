@@ -31,11 +31,14 @@ locals {
           helm = {
             # gitops/root templates every child with these, so the whole
             # cluster follows one revision and one image tag.
-            valuesObject = {
-              targetRevision = var.target_revision
-              repoURL        = var.repo_url
-              imageTag       = var.image_tag
-            }
+            valuesObject = merge(
+              {
+                targetRevision = var.target_revision
+                repoURL        = var.repo_url
+                imageTag       = var.image_tag
+              },
+              var.tetragon_version == "" ? {} : { platform = { tetragon = { version = var.tetragon_version } } },
+            )
           }
         }
         destination = {

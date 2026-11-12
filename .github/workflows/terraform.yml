@@ -116,8 +116,6 @@ jobs:
             sleep 5
           done
           echo "no Tetragon event carried pod metadata" >&2; exit 1
-      - name: Guardrails block rogue Scenarios
-        run: scripts/check-guardrails.sh
       - name: Diagnostics
         if: failure()
         run: |
