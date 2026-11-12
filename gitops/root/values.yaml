@@ -51,8 +51,8 @@ platform:
         exportAllowList: |-
           {"event_set":["PROCESS_KPROBE"]}
           {"event_set":["PROCESS_EXEC"],"pod_regex":["^.+-(orchestrator|worker)-[a-z0-9]+-[a-z0-9]+$"]}
-  # Observability (ADR-less, decided in the "Swarm activity dashboard" ticket): Prometheus + Grafana,
-  # Loki and Alloy all live in `monitoring`. Short retention, nothing persisted: it's a demo, not a store.
+  # Observability for the Swarm activity dashboard: Prometheus + Grafana, Loki and Alloy all live in
+  # `monitoring`. Short retention, nothing persisted: it's a demo, not a store.
   kube-prometheus-stack:
     wave: -1
     namespace: monitoring
@@ -120,6 +120,12 @@ platform:
           replication_factor: 1
         storage:
           type: filesystem
+        # Nothing is persisted; keep the last 6 hours, like Prometheus.
+        limits_config:
+          retention_period: 6h
+        compactor:
+          retention_enabled: true
+          delete_request_store: filesystem
         schemaConfig:
           configs:
             - from: "2024-04-01"
@@ -133,6 +139,13 @@ platform:
         replicas: 1
         persistence:
           enabled: false
+      # The chart refuses to render with any of these above zero in Monolithic mode.
+      read:
+        replicas: 0
+      write:
+        replicas: 0
+      backend:
+        replicas: 0
       # Query Loki directly at loki.monitoring.svc:3100; no gateway, caches, canary or tests.
       gateway:
         enabled: false

@@ -35,6 +35,8 @@ task goal -- smoke --wait 60   # submit a Goal to the demo Swarm
 
 See [`agents/`](agents/) to run a Swarm.
 
+Locally the cluster runs on [Colima](https://github.com/abiosoft/colima). The platform includes Prometheus, Grafana, Loki and Alloy as well as Tetragon, so give the VM room — `colima start --memory 8` is a safe starting point (an estimate, not a measurement). Open the dashboard with `task grafana:ui`.
+
 Commits follow [Conventional Commits](https://www.conventionalcommits.org).
 
 ### Merging to `main`
