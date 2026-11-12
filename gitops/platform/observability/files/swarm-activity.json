@@ -58,7 +58,7 @@
         "query": "orchestrator,worker",
         "refresh": 0,
         "includeAll": true,
-        "allValue": ".*",
+        "allValue": "orchestrator|worker",
         "multi": true,
         "current": {
           "selected": true,
@@ -66,7 +66,8 @@
           "value": "$__all"
         },
         "sort": 1,
-        "options": []
+        "options": [],
+        "description": "All = the two Agent roles. The Swarm also has a broker (Valkey), which is not an Agent and never shown here."
       }
     ]
   },

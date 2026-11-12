@@ -43,10 +43,10 @@ eventually() {
 }
 
 # dashboard_loki_exprs <dashboard.json> <swarm> — every Loki query in the dashboard, with Grafana's variables
-# filled in (all roles, a 1 h range, a 1 m interval).
+# filled in (both Agent roles, a 1 h range, a 1 m interval).
 dashboard_loki_exprs() {
   jq -r --arg swarm "$2" '.panels[].targets[]? | select(.datasource.type == "loki") | .expr
-    | gsub("\\$swarm"; $swarm) | gsub("\\$role"; ".*") | gsub("\\$__range"; "1h") | gsub("\\$__interval"; "1m")' "$1"
+    | gsub("\\$swarm"; $swarm) | gsub("\\$role"; "orchestrator|worker") | gsub("\\$__range"; "1h") | gsub("\\$__interval"; "1m")' "$1"
 }
 
 # loki_range_ok <logql> — Loki accepts the query (as a range query, so log and metric queries both work).

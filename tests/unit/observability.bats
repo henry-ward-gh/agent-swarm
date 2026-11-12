@@ -61,7 +61,7 @@ fake_kubectl() { # <response-json>
 ]}
 JSON
   run dashboard_loki_exprs "$BATS_TEST_TMPDIR/d.json" demo
-  [ "${lines[0]}" = 'sum(count_over_time({swarm=~"demo", role=~".*"}[1h]))' ]
+  [ "${lines[0]}" = 'sum(count_over_time({swarm=~"demo", role=~"orchestrator|worker"}[1h]))' ]
   [ "${lines[1]}" = 'count_over_time({swarm="x"}[1m])' ]
   [ "${#lines[@]}" -eq 2 ]
 }
