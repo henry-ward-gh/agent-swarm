@@ -1,0 +1,79 @@
+{{- if not (has .Values.role (list "orchestrator" "worker")) }}
+{{- fail (printf "role must be orchestrator or worker, got %q" .Values.role) }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agent.fullname" . }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      {{- include "agent.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "agent.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "agent.fullname" . }}
+      automountServiceAccountToken: true
+      terminationGracePeriodSeconds: 5
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: agent
+          image: {{ include "agent.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | default .Values.global.image.pullPolicy | default "IfNotPresent" }}
+          args: ["run"]
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: SWARM_NAME
+              value: {{ include "agent.swarm" . | quote }}
+            - name: AGENT_ROLE
+              value: {{ .Values.role | quote }}
+            - name: VALKEY_HOST
+              value: {{ .Values.broker.host | default (printf "%s-valkey" (include "agent.swarm" .)) | quote }}
+            - name: VALKEY_PORT
+              value: {{ .Values.broker.port | quote }}
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.broker.passwordSecret.name | default (printf "%s-broker" (include "agent.swarm" .)) }}
+                  key: {{ .Values.broker.passwordSecret.key }}
+            - name: WORKSPACE
+              value: /workspace
+            - name: TASK_TIMEOUT
+              value: {{ .Values.taskTimeoutSeconds | quote }}
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            exec:
+              command: ["agent", "ready"]
+            periodSeconds: 5
+            timeoutSeconds: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+      volumes:
+        # The Workspace: the one place an Agent may write.
+        - name: workspace
+          emptyDir:
+            sizeLimit: {{ .Values.workspace.sizeLimit }}

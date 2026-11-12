@@ -1,0 +1,6 @@
+apiVersion: v2
+name: agent
+description: The Agent slot — one Deployment for one role (Orchestrator or Workers) of a Swarm. Swap the image to swap a Mock Agent for a real one.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

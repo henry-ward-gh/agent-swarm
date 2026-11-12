@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/henry-ward-gh/agent-swarm/protocol/task.schema.json",
+  "title": "Task",
+  "description": "A unit of work the Orchestrator hands to whichever Worker is free. A Mock Agent reads `scenario` as the Scenario to play; a real Agent reads `prompt`.",
+  "type": "object",
+  "required": ["version", "id", "goalId"],
+  "properties": {
+    "version": { "const": 1 },
+    "id": { "type": "string", "minLength": 1 },
+    "goalId": { "type": "string", "minLength": 1 },
+    "scenario": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "prompt": { "type": "string", "minLength": 1 },
+    "inputs": { "type": "object" }
+  },
+  "oneOf": [
+    { "required": ["scenario"] },
+    { "required": ["prompt"] }
+  ],
+  "additionalProperties": false
+}

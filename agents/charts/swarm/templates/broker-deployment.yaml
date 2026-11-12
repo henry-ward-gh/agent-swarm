@@ -1,0 +1,66 @@
+# The Swarm's broker (ADR 0002): single replica, no persistence. Infrastructure,
+# not an Agent — it carries no agent-swarm.io/role label, so Guardrails skip it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "swarm.name" . }}-valkey
+  labels:
+    {{- include "swarm.brokerLabels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "swarm.brokerLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "swarm.brokerLabels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: valkey
+          image: {{ .Values.broker.image }}
+          command: ["valkey-server"]
+          args:
+            - --port
+            - {{ .Values.broker.port | quote }}
+            - --requirepass
+            - $(REDISCLI_AUTH)
+            - --save
+            - ""
+            - --appendonly
+            - "no"
+          env:
+            # Also lets `kubectl exec ... valkey-cli` (task goal) authenticate.
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "swarm.name" . }}-broker
+                  key: password
+          ports:
+            - name: valkey
+              containerPort: {{ .Values.broker.port }}
+          readinessProbe:
+            exec:
+              command: ["valkey-cli", "--no-auth-warning", "ping"]
+            periodSeconds: 5
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.broker.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir: {}

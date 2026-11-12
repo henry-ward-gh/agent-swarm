@@ -1,0 +1,78 @@
+name: agents
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: agent-swarm/mock-agent
+
+jobs:
+  charts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/setup-helm@v5
+      - name: Install kubeconform
+        run: |
+          curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz \
+            | sudo tar xz -C /usr/local/bin kubeconform
+      - uses: go-task/setup-task@v2
+        with:
+          version: 3.54.0
+      - run: task charts:lint
+
+  swarm-smoke:
+    # Real cluster: the Swarm comes up and a benign Goal succeeds end to end.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/setup-helm@v5
+      - uses: helm/kind-action@v1.15.2
+        with:
+          version: v0.33.0
+          cluster_name: agent-swarm
+      - name: Build and load the Mock Agent image
+        run: |
+          docker build -t "$IMAGE:${GITHUB_SHA}" --build-arg AGENT_VERSION="${GITHUB_SHA}" agents/mock
+          kind load docker-image "$IMAGE:${GITHUB_SHA}" --name agent-swarm
+      - name: Install the Swarm
+        run: |
+          helm dependency build agents/charts/swarm
+          helm install demo agents/charts/swarm -n swarm-demo --create-namespace \
+            --set global.image.tag="${GITHUB_SHA}" \
+            --set broker.password="$(openssl rand -hex 16)" \
+            --wait --timeout 3m
+      - name: Run the smoke Goal
+        run: |
+          scripts/goal.sh smoke --wait 90 | tee goal.out
+          tail -n +2 goal.out | jq -e 'length > 0 and all(.status == "succeeded")'
+      - name: Diagnostics
+        if: failure()
+        run: |
+          kubectl -n swarm-demo get all -o wide
+          kubectl -n swarm-demo logs deploy/demo-orchestrator --tail=100 || true
+          kubectl -n swarm-demo logs deploy/demo-worker --all-containers --prefix --tail=100 || true
+          kubectl -n swarm-demo describe pods | tail -80 || true
+
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build
+        run: docker build -t "$IMAGE:ci" agents/mock
+      - name: Image sanity
+        run: |
+          docker run --rm "$IMAGE:ci" version
+          docker run --rm --entrypoint id "$IMAGE:ci" | grep -q 'uid=10001'

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/henry-ward-gh/agent-swarm/protocol/goal.schema.json",
+  "title": "Goal",
+  "description": "What a Swarm is asked to achieve. Pushed onto the broker's `goals` list; the Orchestrator splits it into Tasks. A Mock Orchestrator reads `name` as a plan; a real Orchestrator reads `prompt`.",
+  "type": "object",
+  "required": ["version", "id"],
+  "properties": {
+    "version": { "const": 1 },
+    "id": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "prompt": { "type": "string", "minLength": 1 }
+  },
+  "oneOf": [
+    { "required": ["name"] },
+    { "required": ["prompt"] }
+  ],
+  "additionalProperties": false
+}

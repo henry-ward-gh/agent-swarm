@@ -28,3 +28,20 @@ repos:
     hooks:
       - id: terraform_fmt
       - id: terraform_tflint
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.39.0
+    hooks:
+      - id: check-metaschema
+        files: ^protocol/.*\.schema\.json$
+      - id: check-jsonschema
+        name: validate protocol examples (goal)
+        files: ^protocol/examples/goal\..*\.json$
+        args: [--schemafile, protocol/goal.schema.json]
+      - id: check-jsonschema
+        name: validate protocol examples (task)
+        files: ^protocol/examples/task\..*\.json$
+        args: [--schemafile, protocol/task.schema.json]
+      - id: check-jsonschema
+        name: validate protocol examples (result)
+        files: ^protocol/examples/result\..*\.json$
+        args: [--schemafile, protocol/result.schema.json]
