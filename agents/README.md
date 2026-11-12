@@ -27,11 +27,11 @@ Set `guardrails.enabled=true` (needs Tetragon and a pinned `broker.clusterIP`) a
 
 ## Published image
 
-Every push to `main` publishes the Mock Agent to `ghcr.io/henry-ward-gh/agent-swarm/mock-agent`, tagged with the commit SHA, `main` and `latest`, after a Trivy scan (HIGH/CRITICAL with a fix fail the build — the same scan runs on every PR). Each image is signed by digest with keyless [cosign](https://docs.sigstore.dev); verify one with:
+Every push to `main` publishes the Mock Agent to `ghcr.io/henry-ward-gh/agent-swarm/mock-agent`, tagged with the commit SHA (and `main` / `latest` when that commit is the head of `main`), after a Trivy scan (HIGH/CRITICAL with a fix fail the build — the same scan runs on every PR). Each image is signed by digest with keyless [cosign](https://docs.sigstore.dev); verify one with:
 
 ```sh
 cosign verify ghcr.io/henry-ward-gh/agent-swarm/mock-agent:<sha> \
-  --certificate-identity-regexp 'https://github.com/henry-ward-gh/agent-swarm/' \
+  --certificate-identity 'https://github.com/henry-ward-gh/agent-swarm/.github/workflows/agents.yml@refs/heads/main' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 

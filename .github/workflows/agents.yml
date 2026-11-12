@@ -9,8 +9,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  # Never cancel a push to main: its image still has to be published.
+  # PRs: one run per ref, newer supersedes older. Pushes to main: one group per commit, because GitHub
+  # keeps a single *pending* run per group and would silently drop the middle of a burst of pushes,
+  # and every main commit's image must be published.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -106,10 +108,18 @@ jobs:
         id: push
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          for tag in "$GITHUB_SHA" main latest; do
-            docker tag "$IMAGE:ci" "$REGISTRY_IMAGE:$tag"
-            docker push "$REGISTRY_IMAGE:$tag"
-          done
+          docker tag "$IMAGE:ci" "$REGISTRY_IMAGE:$GITHUB_SHA"
+          docker push "$REGISTRY_IMAGE:$GITHUB_SHA"
+          # Runs for different commits can overlap, so a slower older run must not move the floating
+          # tags back: only the current head of main may.
+          if [[ "$(git ls-remote origin refs/heads/main | cut -f1)" == "$GITHUB_SHA" ]]; then
+            for tag in main latest; do
+              docker tag "$IMAGE:ci" "$REGISTRY_IMAGE:$tag"
+              docker push "$REGISTRY_IMAGE:$tag"
+            done
+          else
+            echo "main has moved past $GITHUB_SHA; leaving :main and :latest alone"
+          fi
           echo "ref=$(docker inspect --format '{{index .RepoDigests 0}}' "$REGISTRY_IMAGE:$GITHUB_SHA")" >>"$GITHUB_OUTPUT"
       - name: Install cosign
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -122,7 +132,7 @@ jobs:
           cosign sign --yes "$IMAGE_REF"
           {
             echo "### Published"
-            echo "\`$IMAGE_REF\` (also \`:main\`, \`:latest\`), signed with cosign keyless."
+            echo "\`$IMAGE_REF\` (also \`:main\` and \`:latest\` when this commit is the head of main), signed with cosign keyless."
             echo "Verify it with the command in agents/README.md."
           } >>"$GITHUB_STEP_SUMMARY"
 
@@ -133,6 +143,9 @@ jobs:
     needs: image
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    concurrency:
+      group: ghcr-prune
+      cancel-in-progress: false
     permissions:
       contents: read
       packages: write

@@ -21,7 +21,7 @@ select_prunable() {
 
 main() {
   local owner="${1:?usage: ghcr-prune.sh <owner> <package> <keep> [--dry-run]}" package="${2:?package}" keep="${3:?keep}"
-  local dry=false base type versions ids id
+  local dry=false base type versions ids id out
   [[ "${4:-}" == "--dry-run" ]] && dry=true
 
   type=$(gh api "users/$owner" -q .type)
@@ -39,7 +39,15 @@ main() {
       echo "would delete version $id"
     else
       echo "deleting version $id"
-      gh api -X DELETE "$base/versions/$id"
+      # Concurrent publishes can prune the same versions: already gone is fine, anything else is not.
+      if ! out=$(gh api -X DELETE "$base/versions/$id" 2>&1); then
+        if [[ "$out" == *"404"* ]]; then
+          echo "version $id already gone"
+        else
+          echo "$out" >&2
+          return 1
+        fi
+      fi
     fi
   done
 }
