@@ -23,7 +23,7 @@
         },
         "enable": true,
         "iconColor": "red",
-        "expr": "{event_type=\"process_kprobe\", swarm=~\"$swarm\"}",
+        "expr": "{event_type=\"process_kprobe\", swarm=~\"$swarm\", role=~\"$role\"}",
         "titleFormat": "Guardrail {{policy}}",
         "textFormat": "{{swarm}}"
       }

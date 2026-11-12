@@ -46,11 +46,12 @@ platform:
               fieldRef:
                 fieldPath: spec.nodeName
         # What Tetragon exports (to stdout, where Alloy ships it to Loki; the e2e harness reads it too).
-        # Every kprobe event (the Guardrails are the only kprobe policies) plus execs by Swarm Agents.
+        # Every kprobe event (the Guardrails are the only kprobe policies) plus execs by Swarm Agents (pods in a
+        # swarm-* namespace named like an Agent: `namespace_regex` and `pod_regex` in one rule must both match).
         # Tetragon's default denylist (host, kube-system, cilium namespaces) stays in force.
         exportAllowList: |-
           {"event_set":["PROCESS_KPROBE"]}
-          {"event_set":["PROCESS_EXEC"],"pod_regex":["^.+-(orchestrator|worker)-[a-z0-9]+-[a-z0-9]+$"]}
+          {"event_set":["PROCESS_EXEC"],"namespace_regex":["^swarm-"],"pod_regex":["^.+-(orchestrator|worker)-[a-z0-9]+-[a-z0-9]+$"]}
   # Observability for the Swarm activity dashboard: Prometheus + Grafana, Loki and Alloy all live in
   # `monitoring`. Short retention, nothing persisted: it's a demo, not a store.
   kube-prometheus-stack:
