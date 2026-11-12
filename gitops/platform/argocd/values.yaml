@@ -1,6 +1,6 @@
-# argo-cd chart values. Single source of truth (ADR 0005): the Terraform
-# bootstrap installs Argo CD with these, and the self-managed Argo CD
-# Application uses the same file afterwards.
+# argo-cd chart values (ADR 0005). The Terraform bootstrap installs Argo CD
+# with these; the self-managed Argo CD Application (added with the GitOps
+# platform apps, issue #18) must use this same file so the first sync is a no-op.
 configs:
   params:
     # TLS terminates at kubectl port-forward locally; no ingress in kind.

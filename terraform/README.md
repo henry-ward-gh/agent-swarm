@@ -23,7 +23,7 @@ task down                                # delete the cluster and local state
 task tf:test                             # module tests with mocked providers — no cluster needed
 ```
 
-Argo CD's chart version comes from [`gitops/root/values.yaml`](../gitops/root/values.yaml) and its values from [`gitops/platform/argocd/values.yaml`](../gitops/platform/argocd/values.yaml) — the same files the self-managed Argo CD app uses.
+Argo CD's chart (name, repo, version) comes from [`gitops/root/values.yaml`](../gitops/root/values.yaml) and its values from [`gitops/platform/argocd/values.yaml`](../gitops/platform/argocd/values.yaml) — the files the self-managed Argo CD app must also use.
 
 ## CI (`.github/workflows/terraform.yml`)
 
@@ -31,4 +31,4 @@ Argo CD's chart version comes from [`gitops/root/values.yaml`](../gitops/root/va
 - **trivy** — IaC misconfiguration scan (HIGH/CRITICAL fail).
 - **up** — real `task up` on kind, then asserts Argo CD's root app is Synced/Healthy at the commit under test.
 
-`fmt` and `tflint` run via pre-commit in the `lint` workflow. Lock files are committed with hashes for every platform.
+`fmt` and `tflint` run via pre-commit in the `lint` workflow. Lock files are committed with `zh:` hashes for every published platform and `h1:` hashes for linux/darwin × amd64/arm64, so `init -lockfile=readonly` works on CI runners and Macs.

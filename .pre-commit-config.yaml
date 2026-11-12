@@ -28,6 +28,7 @@ repos:
     hooks:
       - id: terraform_fmt
       - id: terraform_tflint
+        args: [--args=--config=__GIT_WORKING_DIR__/.tflint.hcl]
   - repo: https://github.com/python-jsonschema/check-jsonschema
     rev: 0.39.0
     hooks:

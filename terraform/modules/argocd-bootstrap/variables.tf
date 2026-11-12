@@ -24,6 +24,12 @@ variable "image_tag" {
   default     = "dev"
 }
 
+variable "argocd_chart" {
+  description = "Argo CD chart name — read from gitops/ alongside the version."
+  type        = string
+  default     = "argo-cd"
+}
+
 variable "argocd_chart_version" {
   description = "argo-cd chart version — read from gitops/ so the self-managed Argo CD app and this bootstrap agree (ADR 0005)."
   type        = string

@@ -7,7 +7,7 @@ resource "helm_release" "argocd" {
   namespace        = var.namespace
   create_namespace = true
   repository       = var.chart_repository
-  chart            = "argo-cd"
+  chart            = var.argocd_chart
   version          = var.argocd_chart_version
   values           = [var.argocd_values]
   wait             = true
