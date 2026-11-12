@@ -1,0 +1,32 @@
+{{- if .Values.guardrails.enabled }}
+# Denylist: nothing written into the Workspace may be executed.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicyNamespaced
+metadata:
+  name: guardrail-workspace-exec
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/part-of: agent-swarm
+spec:
+  options:
+    - name: disable-kprobe-multi
+      value: "1"
+  podSelector:
+    {{- include "swarm.guardrailSelector" . | nindent 4 }}
+  kprobes:
+    - call: security_bprm_check
+      syscall: false
+      args:
+        - index: 0
+          type: linux_binprm
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: Prefix
+              values:
+                - /workspace/
+          matchActions:
+            - action: Override
+              argError: -1
+            - action: Sigkill
+{{- end }}

@@ -37,6 +37,14 @@ platform:
       tetragon:
         # kind mounts the node's /proc at /procHost (terraform/modules/cluster-kind).
         hostProcPath: /procHost
+        # kind nodes share the host's bpffs (terraform/modules/cluster-kind), so every Tetragon
+        # agent would pin a policy at the same path and the second to load fails with "file exists".
+        # A per-node bpf dir keeps each agent's pins apart.
+        extraEnv:
+          - name: TETRAGON_BPF_DIR
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
   secret-generator:
     wave: -1
     namespace: secret-generator
@@ -44,3 +52,41 @@ platform:
     repoURL: https://helm.mittwald.de
     chart: kubernetes-secret-generator
     version: 3.4.1
+  # Outside World stand-ins (ADR 0003): the Approved Destination and the Exfil Sink.
+  outside-world:
+    wave: 0
+    namespace: outside-world
+    prune: true
+    path: gitops/platform/outside-world
+    values:
+      servers:
+        approved-api:
+          # Keep in step with demo's worker.egress.allow below.
+          clusterIP: 10.96.0.120
+  # The demo Swarm. Wave 1: its Guardrails (TracingPolicyNamespaced) need Tetragon's CRDs, and its
+  # Scenarios need Outside World. Add more Swarms the same way.
+  demo:
+    wave: 1
+    namespace: swarm-demo
+    prune: true
+    path: agents/charts/swarm
+    followImageTag: true
+    # Its TracingPolicyNamespaced objects get CRD defaults that a client-side diff reports as OutOfSync.
+    serverSideDiff: true
+    values:
+      global:
+        swarm: demo
+      broker:
+        clusterIP: 10.96.0.110
+      guardrails:
+        enabled: true
+      worker:
+        egress:
+          allow:
+            - 10.96.0.120:8080
+    # The secret-generator fills the broker Secret's data; self-heal would wipe it.
+    ignoreDifferences:
+      - kind: Secret
+        name: demo-broker
+        jsonPointers:
+          - /data

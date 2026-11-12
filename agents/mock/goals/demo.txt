@@ -1,0 +1,7 @@
+# Benign and rogue work interleaved, for the dashboard.
+benign-build
+rogue-exfil
+benign-fetch
+rogue-token-theft
+benign-build
+rogue-dropped-binary

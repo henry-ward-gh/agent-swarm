@@ -17,6 +17,7 @@ How Agents in a Swarm talk to each other through the Swarm's Valkey broker ([ADR
 | `running:<worker>` | list | Worker (`BLMOVE` target) | Orchestrator | Task a Worker has claimed and is running |
 | `heartbeat:<worker>` | string, 10 s TTL | Worker, every 3 s for its whole life | Orchestrator | Worker is alive |
 | `goal:<goalId>:tasks` | list | Orchestrator | anyone | Task ids the Goal was split into, in order |
+| `goal:<goalId>:count` | string | Orchestrator, after the last Task is queued | anyone | Number of Tasks the Goal was split into; its presence means the split is complete, so wait for it before reading `goal:<goalId>:tasks` |
 | `goal:<goalId>:error` | string | Orchestrator | anyone | Why a Goal could not be split (e.g. unknown plan) |
 | `result:<taskId>` | string (Result JSON) | Worker, or Orchestrator for `lost` | harness | Outcome of one Task |
 | `results` | list | same | anyone | All Results, newest first |

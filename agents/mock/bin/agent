@@ -106,6 +106,8 @@ split_goal() { # <goal-json>
     vk LPUSH tasks "$task" >/dev/null
     n=$((n + 1))
   done <"$plan"
+  # Written last: waiters (scripts/goal.sh) must not read the task list before the split is complete.
+  vk SET "goal:$goal_id:count" "$n" >/dev/null
   log "goal $goal_id ($name): split into $n tasks"
 }
 

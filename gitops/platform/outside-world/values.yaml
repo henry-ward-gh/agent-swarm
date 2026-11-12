@@ -1,0 +1,16 @@
+image: python:3.13-alpine
+port: 8080
+
+# One entry per stand-in. `mode` picks the behaviour of the shared server (templates/server.yaml):
+#   approved-api — answers every request 200, like an LLM API; on every Swarm's egress allowlist.
+#   exfil-sink   — records every request; GET /received lists them. On no allowlist.
+servers:
+  approved-api:
+    mode: approved-api
+    # -- Pinned so Swarms can allowlist it (ADR 0003). 10.96.0.x is the Service CIDR's static band, which
+    # the API server never hands out dynamically. Must sit inside the cluster's Service CIDR
+    # and match the Swarm Application's worker.egress.allow in gitops/root/values.yaml.
+    clusterIP: 10.96.0.120
+  exfil-sink:
+    mode: exfil-sink
+    clusterIP: ""
