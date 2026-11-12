@@ -107,10 +107,11 @@ jobs:
           # Tetragon exports execs only for Swarm Agents (its export filter), and an idle Agent keeps
           # exec-ing (heartbeat, broker polling): look for one of theirs carrying pod metadata.
           for _ in $(seq 1 30); do
-            # One Tetragon pod per node: read them all, the Agents' node is not known.
-            if kubectl -n kube-system logs -l app.kubernetes.io/name=tetragon -c export-stdout \
-                --tail=-1 --max-log-requests=10 \
-                | grep -q '"pod":{[^}]*"name":"demo-\(worker\|orchestrator\)-'; then
+            # One Tetragon pod per node: read them all, the Agents' node is not known. Read first, grep
+            # after: `grep -q` quits at the first match, which would SIGPIPE kubectl under `pipefail`.
+            events=$(kubectl -n kube-system logs -l app.kubernetes.io/name=tetragon -c export-stdout \
+                --tail=-1 --max-log-requests=10 || true)
+            if grep -q '"pod":{[^}]*"name":"demo-\(worker\|orchestrator\)-' <<<"$events"; then
               echo "event with pod metadata found"; exit 0
             fi
             sleep 5
