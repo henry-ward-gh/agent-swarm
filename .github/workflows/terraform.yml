@@ -91,7 +91,10 @@ jobs:
       - name: Platform apps are Synced and Healthy
         run: |
           # Every child the root chart rendered (root is Synced, so they all exist).
-          for app in $(kubectl -n argocd get applications.argoproj.io -o name | grep -v '/root$'); do
+          apps=$(kubectl -n argocd get applications.argoproj.io -o name)
+          apps=$(printf '%s\n' "$apps" | grep -v '/root$')
+          test -n "$apps"
+          for app in $apps; do
             kubectl -n argocd wait "$app" \
               --for=jsonpath='{.status.sync.status}'=Synced --timeout=8m
             kubectl -n argocd wait "$app" \
