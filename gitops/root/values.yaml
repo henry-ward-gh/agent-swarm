@@ -10,3 +10,39 @@ argocd:
   repoURL: https://argoproj.github.io/argo-helm
   chart: argo-cd
   version: 9.7.1
+
+# Platform apps rendered as child Applications by templates/platform-apps.yaml.
+# Sync waves order them: lower syncs (and must be Healthy) first. CRD providers
+# sit below 0 so anything that uses their CRDs (Swarm apps, wave >= 0) waits.
+# Per-app `ignoreDifferences` is passed straight through (Swarm apps need it on
+# the broker Secret's /data, which the secret-generator fills).
+platform:
+  argocd:
+    wave: -2
+    namespace: argocd
+    # Never prune: a bad commit must not delete Argo CD (ADR 0005).
+    prune: false
+    # Same chart + values file the Terraform bootstrap installs. repo/chart/
+    # version come from `argocd:` above.
+    valuesFile: gitops/platform/argocd/values.yaml
+  tetragon:
+    wave: -1
+    namespace: kube-system
+    prune: true
+    repoURL: https://helm.cilium.io
+    chart: tetragon
+    # Overridable: the nightly run passes the latest release.
+    version: 1.8.0
+    values:
+      tetragon:
+        # kind mounts the node's /proc at /procHost (terraform/modules/cluster-kind).
+        hostProcPath: /procHost
+  secret-generator:
+    wave: -1
+    namespace: secret-generator
+    prune: true
+    repoURL: https://helm.mittwald.de
+    chart: kubernetes-secret-generator
+    version: 3.4.1
+    values:
+      secretLength: 40

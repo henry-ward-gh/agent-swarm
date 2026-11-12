@@ -1,0 +1,56 @@
+{{- /*
+  One Application per entry in .Values.platform. Every one follows
+  .Values.targetRevision (ADR 0005) — never hard-code a revision here.
+*/}}
+{{- range $name, $app := .Values.platform }}
+{{- $isArgo := eq $name "argocd" }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/part-of: agent-swarm
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ $app.wave | quote }}
+spec:
+  project: default
+  {{- if $isArgo }}
+  sources:
+    - repoURL: {{ $.Values.argocd.repoURL }}
+      chart: {{ $.Values.argocd.chart }}
+      targetRevision: {{ $.Values.argocd.version | quote }}
+      helm:
+        releaseName: argocd
+        valueFiles:
+          - $values/{{ $app.valuesFile }}
+    - repoURL: {{ $.Values.repoURL }}
+      targetRevision: {{ $.Values.targetRevision }}
+      ref: values
+  {{- else }}
+  source:
+    repoURL: {{ $app.repoURL }}
+    chart: {{ $app.chart }}
+    targetRevision: {{ $app.version | quote }}
+    {{- with $app.values }}
+    helm:
+      valuesObject:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+  {{- end }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ $app.namespace }}
+  syncPolicy:
+    automated:
+      prune: {{ $app.prune }}
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  {{- with $app.ignoreDifferences }}
+  ignoreDifferences:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
