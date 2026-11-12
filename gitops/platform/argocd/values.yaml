@@ -1,0 +1,13 @@
+# argo-cd chart values. Single source of truth (ADR 0005): the Terraform
+# bootstrap installs Argo CD with these, and the self-managed Argo CD
+# Application uses the same file afterwards.
+configs:
+  params:
+    # TLS terminates at kubectl port-forward locally; no ingress in kind.
+    server.insecure: true
+
+dex:
+  enabled: false
+
+notifications:
+  enabled: false

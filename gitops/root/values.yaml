@@ -1,0 +1,11 @@
+# Set by the Terraform-owned root app (terraform/modules/argocd-bootstrap).
+targetRevision: main
+repoURL: https://github.com/henry-ward-gh/agent-swarm.git
+imageTag: dev
+
+# Argo CD's own chart. Read by the Terraform bootstrap so a fresh cluster
+# installs exactly what the self-managed Argo CD app will sync to (ADR 0005).
+argocd:
+  repoURL: https://argoproj.github.io/argo-helm
+  chart: argo-cd
+  version: 9.7.1

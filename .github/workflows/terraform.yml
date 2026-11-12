@@ -1,0 +1,99 @@
+name: terraform
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TF_IN_AUTOMATION: "1"
+
+jobs:
+  static:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.17.2
+          terraform_wrapper: false
+      - uses: go-task/setup-task@v2
+        with:
+          version: 3.54.0
+      - name: Validate every root and module
+        run: |
+          for d in terraform/modules/* terraform/envs/*/*; do
+            echo "::group::$d"
+            terraform -chdir="$d" init -input=false -backend=false -lockfile=readonly
+            terraform -chdir="$d" validate
+            echo "::endgroup::"
+          done
+      - name: Module tests
+        run: task tf:test
+      - name: Plan the cluster stage
+        run: |
+          terraform -chdir=terraform/envs/kind/cluster init -input=false -lockfile=readonly
+          terraform -chdir=terraform/envs/kind/cluster plan -input=false
+
+  trivy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: config
+          scan-ref: terraform
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+  up:
+    # The real thing: both stages on kind, then Argo CD must sync the root app
+    # at exactly this commit, from the repo the commit lives in (fork-safe).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      REPO_URL: ${{ github.event.pull_request.head.repo.clone_url || format('{0}/{1}.git', github.server_url, github.repository) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.17.2
+          terraform_wrapper: false
+      - uses: helm/kind-action@v1.15.2
+        with:
+          version: v0.33.0
+          install_only: true
+      - uses: go-task/setup-task@v2
+        with:
+          version: 3.54.0
+      - name: task up
+        run: task up TARGET_REVISION="$REVISION" REPO_URL="$REPO_URL" TAG="$REVISION"
+      - name: Argo CD syncs the root app at this commit
+        run: |
+          kubectl -n argocd wait applications.argoproj.io/root \
+            --for=jsonpath='{.status.sync.status}'=Synced --timeout=5m
+          kubectl -n argocd wait applications.argoproj.io/root \
+            --for=jsonpath='{.status.health.status}'=Healthy --timeout=5m
+          got=$(kubectl -n argocd get configmap root-info -o jsonpath='{.data.targetRevision}')
+          echo "root-info.targetRevision=$got"
+          test "$got" = "$REVISION"
+          test "$(kubectl -n argocd get configmap root-info -o jsonpath='{.data.imageTag}')" = "$REVISION"
+      - name: Diagnostics
+        if: failure()
+        run: |
+          kubectl -n argocd get applications.argoproj.io -o wide || true
+          kubectl -n argocd get applications.argoproj.io root -o yaml || true
+          kubectl -n argocd get pods -o wide || true
+      - name: task down
+        if: always()
+        run: task down
