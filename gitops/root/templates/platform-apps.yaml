@@ -1,6 +1,8 @@
 {{- /*
-  One Application per entry in .Values.platform. Every one follows
-  .Values.targetRevision (ADR 0005) — never hard-code a revision here.
+  One Application per entry in .Values.platform. Anything sourced from this
+  repo (Argo CD's values file, Swarm apps) follows .Values.targetRevision
+  (ADR 0005) — never hard-code a revision here. Upstream charts (Tetragon,
+  secret-generator) pin their own chart version via values.
 */}}
 {{- range $name, $app := .Values.platform }}
 {{- $isArgo := eq $name "argocd" }}
@@ -44,7 +46,7 @@ spec:
     namespace: {{ $app.namespace }}
   syncPolicy:
     automated:
-      prune: {{ $app.prune }}
+      prune: {{ if hasKey $app "prune" }}{{ $app.prune }}{{ else }}true{{ end }}
       selfHeal: true
     syncOptions:
       - CreateNamespace=true

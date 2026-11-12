@@ -31,7 +31,7 @@ platform:
     prune: true
     repoURL: https://helm.cilium.io
     chart: tetragon
-    # Overridable: the nightly run passes the latest release.
+    # Overridable (--set platform.tetragon.version=...), e.g. for a nightly run on the latest release.
     version: 1.8.0
     values:
       tetragon:
