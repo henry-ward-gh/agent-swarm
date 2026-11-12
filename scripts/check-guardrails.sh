@@ -15,7 +15,7 @@ for _ in $(seq 1 30); do
   [[ "$(kubectl -n "$SWARM_NAMESPACE" get tracingpolicynamespaced -o name | wc -l)" -eq 3 ]] && break
   sleep 2
 done
-[[ "$(kubectl -n "$SWARM_NAMESPACE" get tracingpolicynamespaced -o name | wc -l)" -eq 3 ]] || fail "expected 3 Guardrails in swarm-demo"
+[[ "$(kubectl -n "$SWARM_NAMESPACE" get tracingpolicynamespaced -o name | wc -l)" -eq 3 ]] || fail "expected 3 Guardrails in $SWARM_NAMESPACE"
 sleep 15
 
 out=$(scripts/goal.sh smoke --wait 90 | tail -n +2)

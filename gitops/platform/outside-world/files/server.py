@@ -21,7 +21,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def handle_any(self):
-        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            length = -1
         if length < 0:
             self.close_connection = True
             return self.reply(400, {"error": "invalid Content-Length"})

@@ -38,6 +38,8 @@ while [[ $SECONDS -lt $deadline ]]; do
   fi
   sleep 1
 done
+# A plan with no Scenarios splits into zero Tasks: nothing to wait for.
+if [[ "${count:-}" == "0" ]]; then echo "[]"; exit 0; fi
 
 while [[ $SECONDS -lt $deadline ]]; do
   results=()
