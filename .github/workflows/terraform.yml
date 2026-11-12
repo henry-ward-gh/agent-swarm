@@ -126,6 +126,11 @@ jobs:
           kubectl -n argocd get pods -o wide || true
           kubectl -n kube-system logs -l app.kubernetes.io/name=tetragon -c export-stdout --tail=20 --max-log-requests=10 || true
           kubectl -n swarm-demo get pods,tracingpolicynamespaced -o wide || true
+          # Which resources of each child Application are not Synced, and why.
+          kubectl -n argocd get applications.argoproj.io -o json \
+            | jq '.items[] | {app: .metadata.name, conditions: .status.conditions, op: .status.operationState.message,
+                outOfSync: [.status.resources[]? | select(.status != "Synced") | {kind, name, status, message}]}' || true
+          kubectl -n swarm-demo get tracingpolicynamespaced -o yaml | head -150 || true
           kubectl -n outside-world get pods,svc -o wide || true
           kubectl -n kube-system logs -l app.kubernetes.io/name=tetragon -c tetragon --tail=60 --max-log-requests=10 | grep -iE 'error|fail' || true
       - name: task down
