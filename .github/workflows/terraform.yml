@@ -92,7 +92,7 @@ jobs:
         run: |
           for app in argocd tetragon secret-generator; do
             # The child Application may not be rendered yet; wait for it to exist.
-            for i in $(seq 1 60); do
+            for _ in $(seq 1 60); do
               kubectl -n argocd get applications.argoproj.io/$app >/dev/null 2>&1 && break
               sleep 5
             done
@@ -107,7 +107,7 @@ jobs:
           # Generate process activity in a pod, then look for it in the event stream.
           kubectl run probe --image=busybox:1.37 --restart=Never -- sh -c 'sleep 5; echo done'
           kubectl wait pod/probe --for=jsonpath='{.status.phase}'=Succeeded --timeout=2m
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if kubectl -n kube-system logs ds/tetragon -c export-stdout --tail=-1 \
                 | grep -q '"pod":{"namespace":"default","name":"probe"'; then
               echo "event with pod metadata found"; exit 0
