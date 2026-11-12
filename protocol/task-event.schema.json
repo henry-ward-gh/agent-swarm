@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/henry-ward-gh/agent-swarm/protocol/task-event.schema.json",
+  "title": "Task event",
+  "description": "One log line per Task transition, written as a single JSON object to the Agent's stdout (not through the broker). Collectors ship it to Loki for the Swarm activity dashboard. The Worker writes started/succeeded/failed; the Orchestrator writes lost, because a killed Worker cannot log its own death. A real Agent's Adapter emits the same lines.",
+  "type": "object",
+  "required": ["ts", "swarm", "role", "task_id", "scenario", "state", "exit", "worker"],
+  "properties": {
+    "ts": { "type": "string", "format": "date-time" },
+    "swarm": { "type": "string", "description": "Name of the Swarm (SWARM_NAME)." },
+    "role": { "enum": ["orchestrator", "worker"], "description": "Role of the Agent that wrote the line." },
+    "task_id": { "type": "string", "minLength": 1 },
+    "scenario": { "type": "string", "description": "Scenario the Task names; empty if the Task named none." },
+    "state": { "enum": ["started", "succeeded", "failed", "lost"] },
+    "exit": {
+      "type": ["integer", "null"],
+      "description": "Exit code of the Scenario process (128+N when killed by signal N, e.g. 137). Null for started and lost."
+    },
+    "worker": { "type": "string", "minLength": 1, "description": "Pod name of the Worker the Task ran on (for lost, the Worker that stopped)." }
+  },
+  "additionalProperties": false
+}

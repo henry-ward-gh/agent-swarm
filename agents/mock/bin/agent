@@ -10,6 +10,7 @@ AGENT_HOME="${AGENT_HOME:-/opt/agent}"
 VALKEY_HOST="${VALKEY_HOST:-}"
 VALKEY_PORT="${VALKEY_PORT:-6379}"
 POD_NAME="${POD_NAME:-$(cat /proc/sys/kernel/hostname)}"
+SWARM_NAME="${SWARM_NAME:-}"
 WORKSPACE="${WORKSPACE:-/workspace}"
 TASK_TIMEOUT="${TASK_TIMEOUT:-60}"
 OUTPUT_LIMIT="${OUTPUT_LIMIT:-4096}"
@@ -20,6 +21,13 @@ HEARTBEAT_TTL=10
 log() { printf '%s %s %s\n' "$(now)" "${AGENT_ROLE:-?}" "$*" >&2; }
 now() { date -u +%Y-%m-%dT%H:%M:%S.%3NZ; }
 uuid() { cat /proc/sys/kernel/random/uuid; }
+# One JSON line on stdout per Task transition (protocol/task-event.schema.json); stdout is reserved
+# for these, the human-readable log() goes to stderr. Alloy ships them to Loki for the dashboard.
+task_event() { # <task-id> <scenario> <state> <exit|null> <worker>
+  jq -cn --arg ts "$(now)" --arg swarm "$SWARM_NAME" --arg role "${AGENT_ROLE:-?}" --arg task_id "$1" \
+    --arg scenario "$2" --arg state "$3" --argjson exit "$4" --arg worker "$5" \
+    '{ts: $ts, swarm: $swarm, role: $role, task_id: $task_id, scenario: $scenario, state: $state, exit: $exit, worker: $worker}'
+}
 vk() { : "${VALKEY_HOST:?VALKEY_HOST is required}"; valkey-cli --no-auth-warning -h "$VALKEY_HOST" -p "$VALKEY_PORT" "$@"; }
 
 # ---------- Worker ----------
@@ -47,6 +55,7 @@ run_task() { # <task-json>
   started=$(now)
   out="$WORKSPACE/.agent/out.$task_id"
   log "task $task_id: scenario=${scenario:-<none>}"
+  task_event "$task_id" "$scenario" started null "$POD_NAME"
 
   if [[ -z "$scenario" || ! -f "$script" ]]; then
     echo "unknown scenario: '${scenario}'" >"$out"
@@ -63,6 +72,7 @@ run_task() { # <task-json>
   finished=$(now)
   if [[ $rc -eq 0 ]]; then status=succeeded; else status=failed; fi
   log "task $task_id: $status exit=$rc"
+  task_event "$task_id" "$scenario" "$status" "$rc" "$POD_NAME"
 
   write_result "$(jq -cn --arg taskId "$task_id" --arg goalId "$goal_id" --arg worker "$POD_NAME" \
     --arg status "$status" --argjson exitCode "$rc" --arg startedAt "$started" --arg finishedAt "$finished" \
@@ -124,6 +134,7 @@ reap_lost() {
       [[ -n "$task" ]] || continue
       task_id=$(jq -r .id <<<"$task"); goal_id=$(jq -r .goalId <<<"$task")
       log "task $task_id: worker $worker stopped mid-task -> lost"
+      task_event "$task_id" "$(jq -r '.scenario // ""' <<<"$task")" lost null "$worker"
       write_result "$(jq -cn --arg taskId "$task_id" --arg goalId "$goal_id" --arg worker "$worker" --arg t "$(now)" \
         '{version: 1, taskId: $taskId, goalId: $goalId, worker: $worker, status: "lost",
           exitCode: null, output: "", startedAt: $t, finishedAt: $t}')"
