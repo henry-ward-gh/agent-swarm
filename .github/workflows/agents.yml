@@ -110,16 +110,6 @@ jobs:
         run: |
           docker tag "$IMAGE:ci" "$REGISTRY_IMAGE:$GITHUB_SHA"
           docker push "$REGISTRY_IMAGE:$GITHUB_SHA"
-          # Runs for different commits can overlap, so a slower older run must not move the floating
-          # tags back: only the current head of main may.
-          if [[ "$(git ls-remote origin refs/heads/main | cut -f1)" == "$GITHUB_SHA" ]]; then
-            for tag in main latest; do
-              docker tag "$IMAGE:ci" "$REGISTRY_IMAGE:$tag"
-              docker push "$REGISTRY_IMAGE:$tag"
-            done
-          else
-            echo "main has moved past $GITHUB_SHA; leaving :main and :latest alone"
-          fi
           echo "ref=$(docker inspect --format '{{index .RepoDigests 0}}' "$REGISTRY_IMAGE:$GITHUB_SHA")" >>"$GITHUB_OUTPUT"
       - name: Install cosign
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -132,15 +122,51 @@ jobs:
           cosign sign --yes "$IMAGE_REF"
           {
             echo "### Published"
-            echo "\`$IMAGE_REF\` (also \`:main\` and \`:latest\` when this commit is the head of main), signed with cosign keyless."
+            echo "\`$IMAGE_REF\`, signed with cosign keyless."
             echo "Verify it with the command in agents/README.md."
           } >>"$GITHUB_STEP_SUMMARY"
+
+  promote:
+    # Moves :main and :latest to this commit's image, but only if it is still the head of main.
+    # Serialized across runs, with the head check inside the serialized section: a slower older run
+    # can never move the floating tags back, and both tags always move together. Dropping an
+    # intermediate pending run is harmless here (only the newest head matters); every commit's own
+    # :<sha> image is published by `image`, independently.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    concurrency:
+      group: ghcr-promote
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY_IMAGE: ghcr.io/${{ github.repository }}/mock-agent
+    steps:
+      - uses: actions/checkout@v7
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Promote :main and :latest
+        run: |
+          if [[ "$(git ls-remote origin refs/heads/main | cut -f1)" != "$GITHUB_SHA" ]]; then
+            echo "main has moved past $GITHUB_SHA; leaving :main and :latest alone" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # Server-side retag: same digest, so the cosign signature still applies.
+          docker buildx imagetools create -t "$REGISTRY_IMAGE:main" -t "$REGISTRY_IMAGE:latest" "$REGISTRY_IMAGE:$GITHUB_SHA"
+          echo "\`:main\` and \`:latest\` now point at \`$GITHUB_SHA\`" >>"$GITHUB_STEP_SUMMARY"
 
   prune:
     # Retention: keep the newest 60 package versions (about 30 images with their signatures) and
     # never a version tagged main or latest. Separate job so a cleanup failure can't fail a publish.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: image
+    needs: [image, promote]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     concurrency:
