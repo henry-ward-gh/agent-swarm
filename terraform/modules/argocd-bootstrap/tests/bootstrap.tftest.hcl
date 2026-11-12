@@ -99,3 +99,30 @@ run "rejects_empty_target_revision" {
 
   expect_failures = [var.target_revision]
 }
+
+run "tetragon_version_is_not_passed_unless_set" {
+  command = plan
+
+  assert {
+    condition     = !contains(keys(yamldecode(helm_release.root.values[0]).applications.root.source.helm.valuesObject), "platform")
+    error_message = "Without tetragon_version, the root app must leave the platform pins in gitops/root alone."
+  }
+}
+
+run "tetragon_version_overrides_the_platform_pin" {
+  command = plan
+
+  variables {
+    tetragon_version = "1.9.0"
+  }
+
+  assert {
+    condition = yamldecode(helm_release.root.values[0]).applications.root.source.helm.valuesObject == {
+      targetRevision = "0123abcd"
+      repoURL        = "https://github.com/henry-ward-gh/agent-swarm.git"
+      imageTag       = "0123abcd"
+      platform       = { tetragon = { version = "1.9.0" } }
+    }
+    error_message = "tetragon_version must reach gitops/root as platform.tetragon.version (the nightly run tests the latest release)."
+  }
+}

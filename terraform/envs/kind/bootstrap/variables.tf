@@ -15,3 +15,9 @@ variable "image_tag" {
   type        = string
   default     = "dev"
 }
+
+variable "tetragon_version" {
+  description = "Override gitops/root's Tetragon chart pin (nightly e2e runs the latest release). Empty keeps the pin."
+  type        = string
+  default     = ""
+}

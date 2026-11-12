@@ -17,3 +17,6 @@ kubeconfig
 
 # Helm dependency archives (rebuilt from Chart.lock)
 agents/charts/*/charts/
+
+# e2e run output (JUnit, Results, Tetragon events)
+tests/results/

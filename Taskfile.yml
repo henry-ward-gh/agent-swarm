@@ -12,6 +12,8 @@ vars:
   REPO_URL: '{{.REPO_URL | default "https://github.com/henry-ward-gh/agent-swarm.git"}}'
   TF_CLUSTER: terraform/envs/kind/cluster
   TF_BOOTSTRAP: terraform/envs/kind/bootstrap
+  # Empty keeps the pin in gitops/root; the nightly e2e run sets the latest Tetragon chart.
+  TETRAGON_VERSION: '{{.TETRAGON_VERSION | default ""}}'
 
 tasks:
   default:
@@ -43,6 +45,7 @@ tasks:
         -var target_revision={{.TARGET_REVISION}}
         -var repo_url={{.REPO_URL}}
         -var image_tag={{.TAG}}
+        -var tetragon_version={{.TETRAGON_VERSION}}
 
   down:
     desc: Delete the kind cluster and its local Terraform state
@@ -63,6 +66,17 @@ tasks:
     cmds:
       - for: [cluster-kind, argocd-bootstrap]
         cmd: terraform -chdir=terraform/modules/{{.ITEM}} init -input=false -backend=false && terraform -chdir=terraform/modules/{{.ITEM}} test
+
+  test:unit:
+    desc: Run the harness unit tests (verdict logic against fixtures; no cluster)
+    cmds:
+      - bats tests/unit
+
+  test:e2e:
+    desc: 'Guardrail e2e on the live cluster from `task up` — JUnit in tests/results (SWARM_NAMESPACE=swarm-demo)'
+    cmds:
+      - mkdir -p tests/results
+      - bats --print-output-on-failure --report-formatter junit --output tests/results tests/e2e
 
   images:build:
     desc: Build the Mock Agent image as {{.IMAGE}}:$TAG (default dev)

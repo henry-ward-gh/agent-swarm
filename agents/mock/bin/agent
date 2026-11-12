@@ -75,6 +75,9 @@ run_task() { # <task-json>
 
 worker() {
   log "worker $POD_NAME starting"
+  # The first heartbeat must land before any Task is claimed: a claimed Task whose Worker has no
+  # heartbeat is reaped as `lost` by the Orchestrator. The loop only keeps it alive afterwards.
+  until vk SET "heartbeat:$POD_NAME" 1 EX "$HEARTBEAT_TTL" >/dev/null; do log "broker unavailable"; sleep 1; done
   heartbeat_loop &
   local task
   while true; do

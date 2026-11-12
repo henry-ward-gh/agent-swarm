@@ -23,4 +23,4 @@ Without `broker.password` the chart commits an annotated Secret for the in-clust
 
 ## Guardrails
 
-Set `guardrails.enabled=true` (needs Tetragon and a pinned `broker.clusterIP`) and the Swarm chart renders the three Guardrails from [`policies/`](../policies/). The demo Swarm Application in `gitops/root` does this; `task up` then deploys Outside World, so `smoke` succeeds and each rogue Goal (`rogue-exfil`, `rogue-token-theft`, `rogue-dropped-binary`) fails with exit 137. `scripts/check-guardrails.sh` checks that on a live cluster.
+Set `guardrails.enabled=true` (needs Tetragon and a pinned `broker.clusterIP`) and the Swarm chart renders the three Guardrails from [`policies/`](../policies/). The demo Swarm Application in `gitops/root` does this; `task up` then deploys Outside World, so `smoke` succeeds and each rogue Goal (`rogue-exfil`, `rogue-token-theft`, `rogue-dropped-binary`) fails with exit 137. `task test:e2e` checks that on a live cluster ([`tests/`](../tests/)).

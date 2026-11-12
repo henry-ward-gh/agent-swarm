@@ -34,6 +34,7 @@ module "argocd" {
   repo_url             = var.repo_url
   target_revision      = var.target_revision
   image_tag            = var.image_tag
+  tetragon_version     = var.tetragon_version
   chart_repository     = local.argocd_pin.repoURL
   argocd_chart         = local.argocd_pin.chart
   argocd_chart_version = local.argocd_pin.version

@@ -1,0 +1,161 @@
+name: e2e
+
+# Proves every Guardrail on a real cluster: benign Goals succeed, rogue Goals are Blocked
+# (Result failed+137, the expected Guardrail event on that Worker in the Task window, empty Exfil Sink).
+# The verdict is the harness's, never the Worker's — see tests/ and "Blocked" in CONTEXT.md.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Nightly, against the latest Tetragon chart: a failure means upstream broke us.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Only supersede PR runs; a push to main and the nightly run share a ref and must both finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  BATS_VERSION: v1.14.0
+
+jobs:
+  harness:
+    # The verdict logic against fixtures and a fake kubectl: fast, no cluster.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install bats
+        run: |
+          git clone --depth 1 --branch "$BATS_VERSION" https://github.com/bats-core/bats-core.git "$RUNNER_TEMP/bats"
+          sudo "$RUNNER_TEMP/bats/install.sh" /usr/local
+      - uses: go-task/setup-task@v2
+        with:
+          version: 3.54.0
+      - run: task test:unit
+
+  e2e:
+    # One job so its name can be a required check. Docs-only changes skip the cluster steps and
+    # still report success quickly.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      REPO_URL: ${{ github.event.pull_request.head.repo.clone_url || format('{0}/{1}.git', github.server_url, github.repository) }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.REVISION }}
+          fetch-depth: 0
+      - name: Does this change need a cluster?
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          run=true
+          if [[ "$EVENT" == "pull_request" ]]; then
+            changed=$(git diff --name-only "$BASE_SHA...$REVISION")
+            echo "$changed"
+            if [[ -n "$changed" ]] && ! grep -qvE '(^docs/|\.md$|^LICENSE$)' <<<"$changed"; then
+              run=false
+              echo "Docs-only change: skipping the cluster run." >>"$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+          echo "run=$run" >>"$GITHUB_OUTPUT"
+
+      - if: steps.changes.outputs.run == 'true'
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.17.2
+          terraform_wrapper: false
+      - if: steps.changes.outputs.run == 'true'
+        uses: helm/kind-action@v1.15.2
+        with:
+          version: v0.33.0
+          install_only: true
+      - if: steps.changes.outputs.run == 'true'
+        uses: azure/setup-helm@v5
+      - if: steps.changes.outputs.run == 'true'
+        uses: go-task/setup-task@v2
+        with:
+          version: 3.54.0
+      - name: Install bats
+        if: steps.changes.outputs.run == 'true'
+        run: |
+          git clone --depth 1 --branch "$BATS_VERSION" https://github.com/bats-core/bats-core.git "$RUNNER_TEMP/bats"
+          sudo "$RUNNER_TEMP/bats/install.sh" /usr/local
+
+      - name: Latest Tetragon chart (nightly only)
+        if: steps.changes.outputs.run == 'true' && github.event_name == 'schedule'
+        run: |
+          helm repo add cilium https://helm.cilium.io
+          helm repo update
+          version=$(helm search repo cilium/tetragon -o json | jq -r '.[0].version')
+          test -n "$version" && test "$version" != null
+          echo "Nightly run against Tetragon chart $version" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "TETRAGON_VERSION=$version" >>"$GITHUB_ENV"
+
+      - name: task up
+        if: steps.changes.outputs.run == 'true'
+        run: task up TARGET_REVISION="$REVISION" REPO_URL="$REPO_URL" TAG="$REVISION" TETRAGON_VERSION="${TETRAGON_VERSION:-}"
+
+      - name: Every Argo CD app is Synced and Healthy
+        if: steps.changes.outputs.run == 'true'
+        run: |
+          kubectl -n argocd wait applications.argoproj.io/root --for=jsonpath='{.status.sync.status}'=Synced --timeout=8m
+          apps=$(kubectl -n argocd get applications.argoproj.io -o name)
+          apps=$(printf '%s\n' "$apps" | grep -v '/root$')
+          test -n "$apps"
+          for app in $apps; do
+            kubectl -n argocd wait "$app" --for=jsonpath='{.status.sync.status}'=Synced --timeout=8m
+            kubectl -n argocd wait "$app" --for=jsonpath='{.status.health.status}'=Healthy --timeout=8m
+          done
+          kubectl -n swarm-demo wait --for=condition=Available deploy --all --timeout=5m
+
+      - name: Guardrail e2e
+        if: steps.changes.outputs.run == 'true'
+        run: task test:e2e
+
+      - name: Summary
+        if: always() && steps.changes.outputs.run == 'true'
+        run: |
+          shopt -s nullglob
+          reports=(tests/results/*.xml)
+          if [[ ${#reports[@]} -gt 0 ]]; then
+            python3 tests/lib/junit-summary.py "${reports[@]}" >>"$GITHUB_STEP_SUMMARY" || true
+          fi
+
+      - name: Collect diagnostics
+        if: failure() && steps.changes.outputs.run == 'true'
+        run: |
+          mkdir -p diagnostics
+          kubectl -n argocd get applications.argoproj.io -o yaml >diagnostics/argocd-applications.yaml || true
+          kubectl get pods -A -o wide >diagnostics/pods.txt || true
+          kubectl -n swarm-demo logs deploy/demo-orchestrator --tail=300 >diagnostics/orchestrator.log || true
+          kubectl -n swarm-demo logs deploy/demo-worker --all-containers --prefix --tail=300 >diagnostics/workers.log || true
+          kubectl -n swarm-demo get tracingpolicynamespaced -o yaml >diagnostics/tracingpolicies.yaml || true
+          tetragon=(kubectl -n kube-system logs -l app.kubernetes.io/name=tetragon --max-log-requests=20)
+          "${tetragon[@]}" -c tetragon --tail=500 >diagnostics/tetragon.log || true
+          "${tetragon[@]}" -c export-stdout --tail=-1 >diagnostics/tetragon-events.jsonl || true
+          kubectl -n outside-world exec deploy/exfil-sink -- python -c \
+            "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8080/received').read().decode())" >diagnostics/exfil-sink.json || true
+      - name: Upload diagnostics
+        if: failure() && steps.changes.outputs.run == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-diagnostics
+          path: |
+            diagnostics/
+            tests/results/
+          if-no-files-found: ignore
+
+      - name: task down
+        if: always() && steps.changes.outputs.run == 'true'
+        run: task down
