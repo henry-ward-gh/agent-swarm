@@ -22,7 +22,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def handle_any(self):
         length = int(self.headers.get("Content-Length") or 0)
-        body = self.rfile.read(length).decode("utf-8", "replace") if length else ""
+        if length < 0:
+            self.close_connection = True
+            return self.reply(400, {"error": "invalid Content-Length"})
+        body = self.rfile.read(min(length, BODY_LIMIT)).decode("utf-8", "replace") if length else ""
+        if length > BODY_LIMIT:
+            self.close_connection = True
         if self.path == "/healthz":
             return self.reply(200, {"ok": True})
         if MODE == "exfil-sink":
