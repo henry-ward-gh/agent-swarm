@@ -91,6 +91,11 @@ jobs:
       - name: Platform apps are Synced and Healthy
         run: |
           for app in argocd tetragon secret-generator; do
+            # The child Application may not be rendered yet; wait for it to exist.
+            for i in $(seq 1 60); do
+              kubectl -n argocd get applications.argoproj.io/$app >/dev/null 2>&1 && break
+              sleep 5
+            done
             kubectl -n argocd wait applications.argoproj.io/$app \
               --for=jsonpath='{.status.sync.status}'=Synced --timeout=8m
             kubectl -n argocd wait applications.argoproj.io/$app \

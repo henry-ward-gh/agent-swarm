@@ -44,5 +44,3 @@ platform:
     repoURL: https://helm.mittwald.de
     chart: kubernetes-secret-generator
     version: 3.4.1
-    values:
-      secretLength: 40
