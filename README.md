@@ -24,9 +24,13 @@ The Agents are **Mock Agents** — bash workloads that play scripted benign and 
 Requires [Task](https://taskfile.dev) and [pre-commit](https://pre-commit.com).
 
 ```sh
-task setup   # install git hooks
-task lint    # run all linters, as CI does
+task setup               # install git hooks
+task lint                # run all linters, as CI does
+task images:load         # build the Mock Agent image and load it into kind
+task goal -- smoke --wait 60   # submit a Goal to the demo Swarm
 ```
+
+See [`agents/`](agents/) to run a Swarm.
 
 Commits follow [Conventional Commits](https://www.conventionalcommits.org).
 

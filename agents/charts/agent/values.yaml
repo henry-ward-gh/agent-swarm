@@ -1,0 +1,53 @@
+# -- orchestrator | worker
+role: worker
+replicas: 1
+
+# -- Which Agent occupies the slot. Dashboards only — Guardrails never select on it.
+implementation: mock
+
+image:
+  # -- Falls back to global.image.repository
+  repository: ""
+  # -- Falls back to global.image.tag
+  tag: ""
+  # -- Falls back to global.image.pullPolicy, then IfNotPresent (CI loads images into kind)
+  pullPolicy: ""
+
+broker:
+  # -- Defaults to <swarm>-valkey
+  host: ""
+  port: 6379
+  passwordSecret:
+    # -- Defaults to <swarm>-broker
+    name: ""
+    key: password
+
+# -- Approved Destinations this implementation needs beyond the Swarm's own broker, as "ip:port".
+# Rendered into the egress Guardrail by the Swarm chart (ADR 0003).
+egress:
+  allow: []
+
+# -- Seconds a Scenario may run before the Worker kills it.
+taskTimeoutSeconds: 60
+
+workspace:
+  sizeLimit: 256Mi
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# -- Extra container env (list of EnvVar)
+env: []
+
+global:
+  # -- Swarm name; defaults to the release name
+  swarm: ""
+  image:
+    repository: agent-swarm/mock-agent
+    tag: dev
+    pullPolicy: IfNotPresent

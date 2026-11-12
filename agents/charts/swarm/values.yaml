@@ -1,0 +1,32 @@
+global:
+  # -- Swarm name; one Swarm per namespace
+  swarm: demo
+  image:
+    repository: agent-swarm/mock-agent
+    # -- CI and local runs use the commit SHA, loaded into kind
+    tag: dev
+    pullPolicy: IfNotPresent
+
+orchestrator:
+  role: orchestrator
+  replicas: 1
+
+worker:
+  role: worker
+  replicas: 2
+
+broker:
+  image: valkey/valkey:9.1-alpine
+  port: 6379
+  # -- Pinned ClusterIP so the egress Guardrail can allowlist it (ADR 0003). Empty = auto.
+  clusterIP: ""
+  # -- Dev/test only. Empty (the default) commits an annotated Secret that the
+  # in-cluster secret-generator fills (ADR 0004); never commit a real value.
+  password: ""
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi

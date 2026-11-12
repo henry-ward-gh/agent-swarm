@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+# Mock Agent runtime. One program, two roles (AGENT_ROLE=orchestrator|worker),
+# speaking the broker protocol in protocol/README.md. Costs no LLM tokens:
+# a Goal names a plan in goals/, a Task names a Scenario in scenarios/.
+#
+# Usage: agent run | agent ready | agent version
+set -euo pipefail
+
+AGENT_HOME="${AGENT_HOME:-/opt/agent}"
+VALKEY_HOST="${VALKEY_HOST:-}"
+VALKEY_PORT="${VALKEY_PORT:-6379}"
+POD_NAME="${POD_NAME:-$(cat /proc/sys/kernel/hostname)}"
+WORKSPACE="${WORKSPACE:-/workspace}"
+TASK_TIMEOUT="${TASK_TIMEOUT:-60}"
+OUTPUT_LIMIT="${OUTPUT_LIMIT:-4096}"
+HEARTBEAT_EVERY=3
+HEARTBEAT_TTL=10
+# REDISCLI_AUTH (the broker password) is read from the environment by valkey-cli.
+
+log() { printf '%s %s %s\n' "$(now)" "${AGENT_ROLE:-?}" "$*" >&2; }
+now() { date -u +%Y-%m-%dT%H:%M:%S.%3NZ; }
+uuid() { cat /proc/sys/kernel/random/uuid; }
+vk() { : "${VALKEY_HOST:?VALKEY_HOST is required}"; valkey-cli --no-auth-warning -h "$VALKEY_HOST" -p "$VALKEY_PORT" "$@"; }
+
+# ---------- Worker ----------
+
+heartbeat_loop() {
+  while true; do
+    vk SET "heartbeat:$POD_NAME" 1 EX "$HEARTBEAT_TTL" >/dev/null || log "heartbeat failed"
+    sleep "$HEARTBEAT_EVERY"
+  done
+}
+
+write_result() { # <result-json>
+  local result="$1" task_id
+  task_id=$(jq -r .taskId <<<"$result")
+  vk SET "result:$task_id" "$result" >/dev/null
+  vk LPUSH results "$result" >/dev/null
+}
+
+run_task() { # <task-json>
+  local task="$1" task_id goal_id scenario script started finished rc status out
+  task_id=$(jq -r .id <<<"$task")
+  goal_id=$(jq -r .goalId <<<"$task")
+  scenario=$(jq -r '.scenario // empty' <<<"$task")
+  script="$AGENT_HOME/scenarios/$scenario.sh"
+  started=$(now)
+  out="$WORKSPACE/.agent/out.$task_id"
+  log "task $task_id: scenario=${scenario:-<none>}"
+
+  if [[ -z "$scenario" || ! -f "$script" ]]; then
+    echo "unknown scenario: '${scenario}'" >"$out"
+    rc=127
+  else
+    # The Scenario runs as a child process, like a real Agent's tool call:
+    # a Guardrail Sigkill kills it (exit 137) and this Worker carries on.
+    set +e
+    (cd "$WORKSPACE" && TASK_ID="$task_id" GOAL_ID="$goal_id" \
+      timeout --signal=KILL "$TASK_TIMEOUT" bash "$script") >"$out" 2>&1
+    rc=$?
+    set -e
+  fi
+  finished=$(now)
+  if [[ $rc -eq 0 ]]; then status=succeeded; else status=failed; fi
+  log "task $task_id: $status exit=$rc"
+
+  write_result "$(jq -cn --arg taskId "$task_id" --arg goalId "$goal_id" --arg worker "$POD_NAME" \
+    --arg status "$status" --argjson exitCode "$rc" --arg startedAt "$started" --arg finishedAt "$finished" \
+    --rawfile output <(tail -c "$OUTPUT_LIMIT" "$out") \
+    '{version: 1, taskId: $taskId, goalId: $goalId, worker: $worker, status: $status,
+      exitCode: $exitCode, output: $output, startedAt: $startedAt, finishedAt: $finishedAt}')"
+  rm -f "$out"
+  vk DEL "running:$POD_NAME" >/dev/null
+}
+
+worker() {
+  log "worker $POD_NAME starting"
+  heartbeat_loop &
+  local task
+  while true; do
+    task=$(vk BLMOVE tasks "running:$POD_NAME" RIGHT LEFT 5) || { log "broker unavailable"; sleep 2; continue; }
+    [[ -n "$task" ]] || continue
+    run_task "$task"
+  done
+}
+
+# ---------- Orchestrator ----------
+
+split_goal() { # <goal-json>
+  local goal="$1" goal_id name plan scenario task task_id n=0
+  goal_id=$(jq -r .id <<<"$goal")
+  name=$(jq -r '.name // empty' <<<"$goal")
+  plan="$AGENT_HOME/goals/$name.txt"
+  if [[ -z "$name" || ! -f "$plan" ]]; then
+    log "goal $goal_id: cannot split (mock Orchestrator needs a known plan name, got '${name}')"
+    vk SET "goal:$goal_id:error" "unknown plan: '${name}'" >/dev/null
+    return
+  fi
+  while IFS= read -r scenario || [[ -n "$scenario" ]]; do
+    scenario="${scenario%%#*}"; scenario="${scenario//[[:space:]]/}"
+    [[ -n "$scenario" ]] || continue
+    task_id=$(uuid)
+    task=$(jq -cn --arg id "$task_id" --arg goalId "$goal_id" --arg scenario "$scenario" \
+      '{version: 1, id: $id, goalId: $goalId, scenario: $scenario, inputs: {}}')
+    vk RPUSH "goal:$goal_id:tasks" "$task_id" >/dev/null
+    vk LPUSH tasks "$task" >/dev/null
+    n=$((n + 1))
+  done <"$plan"
+  log "goal $goal_id ($name): split into $n tasks"
+}
+
+reap_lost() {
+  local key worker task task_id goal_id
+  while IFS= read -r key; do
+    [[ -n "$key" ]] || continue
+    worker="${key#running:}"
+    [[ "$(vk EXISTS "heartbeat:$worker")" == "1" ]] && continue
+    while IFS= read -r task; do
+      [[ -n "$task" ]] || continue
+      task_id=$(jq -r .id <<<"$task"); goal_id=$(jq -r .goalId <<<"$task")
+      log "task $task_id: worker $worker stopped mid-task -> lost"
+      write_result "$(jq -cn --arg taskId "$task_id" --arg goalId "$goal_id" --arg worker "$worker" --arg t "$(now)" \
+        '{version: 1, taskId: $taskId, goalId: $goalId, worker: $worker, status: "lost",
+          exitCode: null, output: "", startedAt: $t, finishedAt: $t}')"
+    done < <(vk LRANGE "$key" 0 -1)
+    vk DEL "$key" >/dev/null
+  done < <(vk --scan --pattern 'running:*')
+}
+
+orchestrator() {
+  log "orchestrator $POD_NAME starting"
+  local reply
+  while true; do
+    reap_lost || log "reap failed"
+    reply=$(vk --raw BRPOP goals 3) || { log "broker unavailable"; sleep 2; continue; }
+    [[ -n "$reply" ]] || continue
+    split_goal "$(sed -n 2p <<<"$reply")"
+  done
+}
+
+# ---------- entrypoint ----------
+
+case "${1:-run}" in
+  run)
+    mkdir -p "$WORKSPACE/.agent"
+    export TMPDIR="$WORKSPACE/.agent"
+    trap 'kill 0' EXIT
+    case "${AGENT_ROLE:?AGENT_ROLE must be orchestrator or worker}" in
+      orchestrator) orchestrator ;;
+      worker) worker ;;
+      *) echo "unknown AGENT_ROLE: $AGENT_ROLE" >&2; exit 2 ;;
+    esac
+    ;;
+  ready) [[ "$(vk PING)" == "PONG" ]] ;;
+  version) echo "mock-agent ${AGENT_VERSION:-dev}" ;;
+  *) echo "usage: agent run|ready|version" >&2; exit 2 ;;
+esac

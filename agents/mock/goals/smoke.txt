@@ -1,0 +1,2 @@
+# Benign work only: every Task must succeed with no Guardrail firing.
+benign-build

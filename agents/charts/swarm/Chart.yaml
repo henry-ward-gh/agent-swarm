@@ -1,0 +1,15 @@
+apiVersion: v2
+name: swarm
+description: A Swarm — its Valkey broker, one Orchestrator and N Workers — in its own namespace.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - name: agent
+    alias: orchestrator
+    version: 0.1.0
+    repository: file://../agent
+  - name: agent
+    alias: worker
+    version: 0.1.0
+    repository: file://../agent

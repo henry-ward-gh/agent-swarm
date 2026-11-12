@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/henry-ward-gh/agent-swarm/protocol/result.schema.json",
+  "title": "Result",
+  "description": "The outcome of one Task. Written by the Worker (succeeded/failed) or by the Orchestrator when the Worker stopped mid-Task (lost). A Worker never claims a Task was Blocked — that verdict belongs to the test harness.",
+  "type": "object",
+  "required": ["version", "taskId", "goalId", "worker", "status", "exitCode", "startedAt", "finishedAt"],
+  "properties": {
+    "version": { "const": 1 },
+    "taskId": { "type": "string", "minLength": 1 },
+    "goalId": { "type": "string", "minLength": 1 },
+    "worker": { "type": "string", "minLength": 1, "description": "Pod name of the Worker that took the Task." },
+    "status": { "enum": ["succeeded", "failed", "lost"] },
+    "exitCode": {
+      "type": ["integer", "null"],
+      "description": "Exit code of the Scenario (or tool) process; 128+N when killed by signal N, e.g. 137 for SIGKILL. Null when lost."
+    },
+    "output": { "type": "string", "description": "Tail of the process's combined output." },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "finishedAt": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

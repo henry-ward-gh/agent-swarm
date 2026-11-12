@@ -1,0 +1,1 @@
+{"version": 1, "taskId": "3f1e1c1a-0000-4000-8000-000000000002", "goalId": "3f1e1c1a-0000-4000-8000-000000000001", "worker": "demo-worker-7c9d8-abcde", "status": "failed", "exitCode": 137, "output": "Killed", "startedAt": "2026-11-12T10:00:00.000Z", "finishedAt": "2026-11-12T10:00:00.512Z"}

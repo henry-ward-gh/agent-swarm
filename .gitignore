@@ -14,3 +14,6 @@ crash.log
 *.kubeconfig
 kubeconfig
 .DS_Store
+
+# Helm dependency archives (rebuilt from Chart.lock)
+agents/charts/*/charts/

@@ -1,6 +1,13 @@
 # https://taskfile.dev
 version: '3'
 
+vars:
+  TAG: '{{.TAG | default "dev"}}'
+  IMAGE: agent-swarm/mock-agent
+  KIND_CLUSTER: '{{.KIND_CLUSTER | default "agent-swarm"}}'
+  SWARM_NAMESPACE: '{{.SWARM_NAMESPACE | default "swarm-demo"}}'
+  SWARM_NAME: '{{.SWARM_NAME | default "demo"}}'
+
 tasks:
   default:
     desc: List available tasks
@@ -17,3 +24,40 @@ tasks:
     desc: Run every linter, exactly as CI does
     cmds:
       - pre-commit run --all-files --show-diff-on-failure
+      - task: charts:lint
+
+  images:build:
+    desc: Build the Mock Agent image as {{.IMAGE}}:$TAG (default dev)
+    cmds:
+      - docker build -t {{.IMAGE}}:{{.TAG}} --build-arg AGENT_VERSION={{.TAG}} agents/mock
+
+  images:load:
+    desc: Load the Mock Agent image into the kind cluster
+    deps: [images:build]
+    cmds:
+      - kind load docker-image {{.IMAGE}}:{{.TAG}} --name {{.KIND_CLUSTER}}
+
+  charts:deps:
+    desc: Vendor the Agent chart into the Swarm chart
+    cmds:
+      - helm dependency build agents/charts/swarm
+    sources: [agents/charts/agent/**/*, agents/charts/swarm/Chart.*]
+
+  charts:lint:
+    desc: Lint the charts and validate rendered manifests
+    deps: [charts:deps]
+    cmds:
+      - helm lint agents/charts/agent agents/charts/swarm
+      - helm template {{.SWARM_NAME}} agents/charts/swarm -n {{.SWARM_NAMESPACE}} | kubeconform -strict -summary
+      - >-
+        helm template {{.SWARM_NAME}} agents/charts/swarm -n {{.SWARM_NAMESPACE}}
+        --set broker.clusterIP=10.96.100.10 --set broker.password=x
+        | kubeconform -strict -summary
+
+  goal:
+    desc: 'Submit a Goal to the Swarm — task goal -- <plan> [--wait SECONDS]'
+    env:
+      SWARM_NAMESPACE: '{{.SWARM_NAMESPACE}}'
+      SWARM_NAME: '{{.SWARM_NAME}}'
+    cmds:
+      - scripts/goal.sh {{.CLI_ARGS}}
