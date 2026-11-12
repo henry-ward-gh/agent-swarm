@@ -36,6 +36,10 @@ See [`agents/`](agents/) to run a Swarm.
 
 Commits follow [Conventional Commits](https://www.conventionalcommits.org).
 
+### Merging to `main`
+
+`main` is protected by the `protect-main` ruleset: changes land through a pull request, the `pre-commit` (workflow `lint`) and `e2e` checks must pass, and force-pushes and deletion are blocked. No approving review is required (the repo has one maintainer). A docs-only PR (`docs/`, `*.md`, `LICENSE`) still gets a passing `e2e`, because that job skips its cluster steps rather than not running.
+
 ## Licence
 
 [MIT](LICENSE)
