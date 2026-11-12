@@ -41,6 +41,10 @@ The one place an **Agent** is allowed to write. Writing anywhere else is misbeha
 **Scenario**:
 A scripted sequence of actions a **Mock Agent** performs. Either **benign** (ordinary agent work) or **rogue** (misbehaviour such as exfiltration or privilege escalation).
 
+**Blocked**:
+The verdict that a **Guardrail** stopped a rogue **Task**: the Task failed because its action was killed, the expected Guardrail fired on that **Worker** while the Task ran, and nothing reached the **Exfil Sink**. Given by the test harness, never by the **Worker** — a Worker can't tell a Guardrail from any other kill.
+_Avoid_: denied, prevented (when meaning this verdict)
+
 **Approved Destination**:
 A network destination an **Agent** is allowed to reach. Reaching anything else is misbehaviour.
 
@@ -62,6 +66,7 @@ A kernel-level rule that blocks or kills an **Agent** action, as opposed to mere
 - Mock and real **Agents** receive the same **Tasks**; nothing else about the slot differs
 - A **rogue** **Scenario** is expected to trip at least one **Guardrail**
 - Every **Swarm** runs benign **Scenarios** alongside rogue ones: a **Guardrail** that breaks benign work is a defect
+- A benign **Task** must succeed with no **Guardrail** firing on its **Worker**; a rogue **Task** must be **Blocked**
 - A **Guardrail** never distinguishes a **Mock Agent** from a real **Agent**
 
 ## Flagged ambiguities
