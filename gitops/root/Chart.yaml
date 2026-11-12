@@ -1,0 +1,5 @@
+apiVersion: v2
+name: root
+description: App-of-apps. Renders every child Application with the revision, repo and image tag the root app was given (ADR 0005).
+type: application
+version: 0.1.0

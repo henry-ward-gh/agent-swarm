@@ -1,0 +1,12 @@
+# Set by the Terraform-owned root app (terraform/modules/argocd-bootstrap).
+targetRevision: main
+repoURL: https://github.com/henry-ward-gh/agent-swarm.git
+imageTag: dev
+
+# Argo CD's own chart pin. The Terraform bootstrap installs exactly this; the
+# self-managed Argo CD app (issue #18) must render from the same values so a
+# fresh cluster's first sync is a no-op (ADR 0005).
+argocd:
+  repoURL: https://argoproj.github.io/argo-helm
+  chart: argo-cd
+  version: 9.7.1

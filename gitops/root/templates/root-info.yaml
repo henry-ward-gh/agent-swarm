@@ -1,0 +1,12 @@
+# Records what the root app was told to follow, so tools and CI can confirm
+# Argo CD is tracking the expected revision.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: root-info
+  labels:
+    app.kubernetes.io/part-of: agent-swarm
+data:
+  targetRevision: {{ .Values.targetRevision | quote }}
+  repoURL: {{ .Values.repoURL | quote }}
+  imageTag: {{ .Values.imageTag | quote }}

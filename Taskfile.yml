@@ -7,6 +7,11 @@ vars:
   KIND_CLUSTER: '{{.KIND_CLUSTER | default "agent-swarm"}}'
   SWARM_NAMESPACE: '{{.SWARM_NAMESPACE | default "swarm-demo"}}'
   SWARM_NAME: '{{.SWARM_NAME | default "demo"}}'
+  # Argo CD pulls from Git: push your branch before pointing TARGET_REVISION at it.
+  TARGET_REVISION: '{{.TARGET_REVISION | default "main"}}'
+  REPO_URL: '{{.REPO_URL | default "https://github.com/henry-ward-gh/agent-swarm.git"}}'
+  TF_CLUSTER: terraform/envs/kind/cluster
+  TF_BOOTSTRAP: terraform/envs/kind/bootstrap
 
 tasks:
   default:
@@ -25,6 +30,39 @@ tasks:
     cmds:
       - pre-commit run --all-files --show-diff-on-failure
       - task: charts:lint
+
+  up:
+    desc: 'Create the kind cluster, load images, bootstrap Argo CD (TARGET_REVISION=main TAG=dev)'
+    cmds:
+      - terraform -chdir={{.TF_CLUSTER}} init -input=false
+      - terraform -chdir={{.TF_CLUSTER}} apply -input=false -auto-approve -var cluster_name={{.KIND_CLUSTER}}
+      - task: images:load
+      - terraform -chdir={{.TF_BOOTSTRAP}} init -input=false
+      - >-
+        terraform -chdir={{.TF_BOOTSTRAP}} apply -input=false -auto-approve
+        -var target_revision={{.TARGET_REVISION}}
+        -var repo_url={{.REPO_URL}}
+        -var image_tag={{.TAG}}
+
+  down:
+    desc: Delete the kind cluster and its local Terraform state
+    cmds:
+      - kind delete cluster --name {{.KIND_CLUSTER}}
+      - rm -f {{.TF_CLUSTER}}/terraform.tfstate* {{.TF_BOOTSTRAP}}/terraform.tfstate*
+
+  argocd:ui:
+    desc: Print the Argo CD admin password and port-forward the UI to http://localhost:8080
+    cmds:
+      - >-
+        echo "admin password: $(kubectl -n argocd get secret argocd-initial-admin-secret
+        -o jsonpath='{.data.password}' | base64 -d)"
+      - kubectl -n argocd port-forward svc/argocd-server 8080:80
+
+  tf:test:
+    desc: Run the Terraform module tests (mocked providers, no cluster needed)
+    cmds:
+      - for: [cluster-kind, argocd-bootstrap]
+        cmd: terraform -chdir=terraform/modules/{{.ITEM}} init -input=false -backend=false && terraform -chdir=terraform/modules/{{.ITEM}} test
 
   images:build:
     desc: Build the Mock Agent image as {{.IMAGE}}:$TAG (default dev)
@@ -47,7 +85,8 @@ tasks:
     desc: Lint the charts and validate rendered manifests
     deps: [charts:deps]
     cmds:
-      - helm lint agents/charts/agent agents/charts/swarm
+      - helm lint agents/charts/agent agents/charts/swarm gitops/root
+      - helm template root gitops/root -n argocd | kubeconform -strict -summary
       - helm template {{.SWARM_NAME}} agents/charts/swarm -n {{.SWARM_NAMESPACE}} | kubeconform -strict -summary
       - >-
         helm template {{.SWARM_NAME}} agents/charts/swarm -n {{.SWARM_NAMESPACE}}
