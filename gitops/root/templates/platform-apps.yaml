@@ -16,6 +16,10 @@ metadata:
     app.kubernetes.io/part-of: agent-swarm
   annotations:
     argocd.argoproj.io/sync-wave: {{ $app.wave | quote }}
+    {{- if $app.serverSideDiff }}
+    # CRDs default fields the chart doesn't set (e.g. TracingPolicy args); a plain diff reads those as drift.
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+    {{- end }}
 spec:
   project: default
   {{- if $isArgo }}

@@ -63,6 +63,8 @@ platform:
     prune: true
     path: agents/charts/swarm
     followImageTag: true
+    # Its TracingPolicyNamespaced objects get CRD defaults that a client-side diff reports as OutOfSync.
+    serverSideDiff: true
     values:
       global:
         swarm: demo

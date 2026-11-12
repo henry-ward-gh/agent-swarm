@@ -130,7 +130,7 @@ jobs:
           kubectl -n argocd get applications.argoproj.io -o json \
             | jq '.items[] | {app: .metadata.name, conditions: .status.conditions, op: .status.operationState.message,
                 outOfSync: [.status.resources[]? | select(.status != "Synced") | {kind, name, status, message}]}' || true
-          kubectl -n swarm-demo get tracingpolicynamespaced -o yaml | head -150 || true
+          kubectl -n kube-system exec ds/tetragon -c tetragon -- tetra tracingpolicy list || true
           kubectl -n outside-world get pods,svc -o wide || true
           kubectl -n kube-system logs -l app.kubernetes.io/name=tetragon -c tetragon --tail=60 --max-log-requests=10 | grep -iE 'error|fail' || true
       - name: task down
