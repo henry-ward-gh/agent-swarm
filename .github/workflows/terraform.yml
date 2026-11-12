@@ -90,15 +90,11 @@ jobs:
           test "$(kubectl -n argocd get configmap root-info -o jsonpath='{.data.imageTag}')" = "$REVISION"
       - name: Platform apps are Synced and Healthy
         run: |
-          for app in argocd tetragon secret-generator; do
-            # The child Application may not be rendered yet; wait for it to exist.
-            for _ in $(seq 1 60); do
-              kubectl -n argocd get applications.argoproj.io/$app >/dev/null 2>&1 && break
-              sleep 5
-            done
-            kubectl -n argocd wait applications.argoproj.io/$app \
+          # Every child the root chart rendered (root is Synced, so they all exist).
+          for app in $(kubectl -n argocd get applications.argoproj.io -o name | grep -v '/root$'); do
+            kubectl -n argocd wait "$app" \
               --for=jsonpath='{.status.sync.status}'=Synced --timeout=8m
-            kubectl -n argocd wait applications.argoproj.io/$app \
+            kubectl -n argocd wait "$app" \
               --for=jsonpath='{.status.health.status}'=Healthy --timeout=8m
           done
       - name: Tetragon events carry pod metadata
