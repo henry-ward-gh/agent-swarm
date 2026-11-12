@@ -86,3 +86,10 @@ events() { jq -c 'select(.task_id)' "$BATS_TEST_TMPDIR/events"; }
   run_agent worker
   events | jq -e 'keys == ["exit","role","scenario","state","swarm","task_id","ts","worker"]' >/dev/null
 }
+
+@test "a Task naming an unknown Scenario is logged failed with exit 127" {
+  task_broker
+  SCENARIO=nope run_agent worker
+  [[ "$(events | jq -r .state | paste -sd,)" == "started,failed" ]]
+  [[ "$(events | jq -r 'select(.state=="failed") | .exit')" == "127" ]]
+}

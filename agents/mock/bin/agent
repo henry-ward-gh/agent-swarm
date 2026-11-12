@@ -134,10 +134,10 @@ reap_lost() {
       [[ -n "$task" ]] || continue
       task_id=$(jq -r .id <<<"$task"); goal_id=$(jq -r .goalId <<<"$task")
       log "task $task_id: worker $worker stopped mid-task -> lost"
-      task_event "$task_id" "$(jq -r '.scenario // ""' <<<"$task")" lost null "$worker"
       write_result "$(jq -cn --arg taskId "$task_id" --arg goalId "$goal_id" --arg worker "$worker" --arg t "$(now)" \
         '{version: 1, taskId: $taskId, goalId: $goalId, worker: $worker, status: "lost",
           exitCode: null, output: "", startedAt: $t, finishedAt: $t}')"
+      task_event "$task_id" "$(jq -r '.scenario // ""' <<<"$task")" lost null "$worker"
     done < <(vk LRANGE "$key" 0 -1)
     vk DEL "$key" >/dev/null
   done < <(vk --scan --pattern 'running:*')
