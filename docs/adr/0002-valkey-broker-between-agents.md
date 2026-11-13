@@ -12,3 +12,4 @@ Tasks travel through a per-Swarm Valkey instance rather than over HTTP between A
 
 - Delivery is at-most-once: a Worker claims a Task by moving it to a running list; a Task whose Worker's heartbeat expires is marked lost and never retried, so a rogue Task can't kill Workers in a loop.
 - The broker password is a real credential every Agent holds — itself a target for rogue Scenarios.
+- (Amended: "egress to exactly one in-Swarm address" holds for Mock Agents. A real Agent that calls a model API also needs its gateway's pinned ClusterIP on the allowlist. See [Swapping in a real Agent](../real-agents.md).)
