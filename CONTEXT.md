@@ -35,6 +35,10 @@ A **Task** whose **Worker** stopped mid-way (typically killed by a **Guardrail**
 **Adapter**:
 A thin shim that lets a real **Agent** occupy the **Agent** slot by translating **Tasks** into the Agent's own input and its results back.
 
+**Task event**:
+A record, written by an **Agent** to its log, that a **Task** has started, succeeded, failed or been lost. It is what the dashboard shows of Task flow, and is separate from the Task's Result.
+_Avoid_: task log, task metric
+
 **Workspace**:
 The one place an **Agent** is allowed to write. Writing anywhere else is misbehaviour.
 

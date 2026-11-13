@@ -1,6 +1,6 @@
 # tests
 
-End-to-end Guardrail tests: submit Goals to a Swarm and judge every Task.
+End-to-end Guardrail tests: submit Goals to a Swarm and judge every Task. The harness drives the Mock Agent's named plans, so it tests the `demo` Mock Swarm. A Swarm of [real Agents](../docs/real-agents.md) runs alongside it, untested by this harness.
 
 | Path | What |
 |---|---|
