@@ -13,6 +13,7 @@ crash.log
 .task/
 *.kubeconfig
 kubeconfig
+terraform/envs/kind/cluster/agent-swarm-config
 .DS_Store
 
 # Helm dependency archives (rebuilt from Chart.lock)
