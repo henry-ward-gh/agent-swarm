@@ -1,6 +1,6 @@
 # Swapping in a real Agent
 
-The Mock Agent holds the **Agent slot** so nothing here spends LLM tokens. A real Agent (Claude Code, an SDK-built agent, anything that runs tools) can take its place without changing the Swarm chart, the broker or the Guardrails. Only the image changes, plus the values that describe what the new Agent needs ([ADR 0001](adr/0001-scenarios-arrive-as-tasks.md)).
+The Mock Agent holds the Agent slot so nothing here spends LLM tokens. A real Agent (Claude Code, an SDK-built agent, anything that runs tools) can take its place without changing the Swarm chart, the broker or the Guardrails. Only the image changes, plus the values that describe what the new Agent needs ([ADR 0001](adr/0001-scenarios-arrive-as-tasks.md)).
 
 Most real Agents don't speak the broker protocol, so they come wrapped in an **Adapter**. The Adapter is a thin program in the same image that takes Tasks from the broker, hands each one to the Agent as a prompt, and writes the Result back. This guide is the contract that Adapter has to meet.
 
@@ -10,9 +10,9 @@ The Agent chart (`agents/charts/agent`) runs every occupant the same way:
 
 | Requirement | Why |
 |---|---|
-| An executable called `agent` on `PATH`, with `agent run` (the main loop) and `agent ready` (exit 0 when the broker answers) | The chart starts the container with `args: ["run"]` and uses `agent ready` as the readiness probe. The entrypoint is the image's, so make `agent` the `ENTRYPOINT`, or ship an `agent` wrapper script. |
+| An executable called `agent` on `PATH`, with `agent run` (the main loop) and `agent ready` (exit 0 when the broker answers) | The chart starts the container with `args: ["run"]` and uses `agent ready` as the readiness probe. The chart sets only `args`, so the image's `ENTRYPOINT` must be `agent` (a wrapper script is fine), and it must also be on `PATH` for the probe. |
 | Runs as UID/GID 10001, with no capabilities and no privilege escalation | Pod `securityContext` |
-| A read-only root filesystem, where `/workspace` is the only writable path (an `emptyDir`, 256 Mi by default) | The **Workspace**. Set `HOME` and `TMPDIR` under `/workspace` (with `env`), because most Agent CLIs write config and caches to `$HOME`. |
+| A read-only root filesystem, where `/workspace` is the only writable path (an `emptyDir`, 256 Mi by default) | The **Workspace**. Set `HOME` and `TMPDIR` under `/workspace` (with `env`), because most Agent CLIs write config and caches to `$HOME`. Nothing under `/workspace` may be *executed*, though (`guardrail-workspace-exec`), so bake every binary the Agent runs into the image: its CLI, MCP servers, language runtimes, `node_modules/.bin`. Anything an Agent installs into `$HOME` at runtime and then runs is killed. |
 | A mounted ServiceAccount token with zero RBAC | The token is bait. Reading it is what `rogue-token-theft` does, and the `guardrail-credential-files` Guardrail kills it. |
 | Task events are the only log lines that start with `{`. Send them to stdout and send human logs to stderr. | Alloy can't tell stdout from stderr. It ships every container log line that starts with `{` to Loki as a Task event, so an Agent that writes JSON logs would pollute the dashboard. Turn JSON logging off, or prefix those lines. |
 
@@ -39,10 +39,10 @@ The full key table and the JSON Schemas are in [`protocol/`](../protocol/README.
 1. Writes its first heartbeat (`SET heartbeat:$POD_NAME 1 EX 10`) before claiming anything, then refreshes it every 3 s for its whole life. The Orchestrator records a claimed Task whose Worker has no heartbeat as `lost`.
 2. Claims a Task with `BLMOVE tasks running:$POD_NAME RIGHT LEFT <timeout>`.
 3. Reads the Task's `prompt`, plus `inputs` if set, and runs the Agent on it with `/workspace` as the working directory.
-4. Writes a Result (`SET result:<taskId>` and `LPUSH results`) with `status` set to `succeeded` or `failed` and an `exitCode`. Then it runs `DEL running:$POD_NAME`.
+4. Writes a Result (`SET result:<taskId>` and `LPUSH results`) with `status` set to `succeeded` or `failed` and an `exitCode`, plus the other fields [`result.schema.json`](../protocol/result.schema.json) requires. Then it runs `DEL running:$POD_NAME`.
 5. Writes Task events to stdout: `started` when it claims the Task, then `succeeded` or `failed` with the exit code. Each is one JSON line, and no other log line may start with `{` (schema: [`task-event.schema.json`](../protocol/task-event.schema.json)). For a prompt Task, set `scenario` to `""`.
 
-Run the Agent's tool calls as **child processes** of the Adapter, which most Agents already do. A Guardrail `Sigkill` then kills only the offending tool (exit 137), and the Worker survives to report the Task as `failed`. If the Adapter and the Agent are one process, a Guardrail kills the whole Worker and the Task ends `lost`.
+Run the Agent's tool calls as **child processes** of the Adapter, which most Agents already do. A Guardrail `Sigkill` then kills only the offending tool (exit 137), and the Worker survives to report the Task as `failed`. Anything that runs *inside* the Agent's own process counts as the Agent, not a tool. Examples are a built-in web fetch, or an SDK agent calling its model. So if that is killed, the whole Worker dies and the Task ends `lost`. The same happens if the Adapter and the Agent are one process.
 
 **An Orchestrator Adapter:**
 
@@ -56,9 +56,9 @@ The two roles are separate charts, so you can swap one role without the other. F
 
 ## 3. Reaching a real model API
 
-The `guardrail-egress` Guardrail kills any TCP connection that isn't to the Swarm's broker, loopback, or a declared **Approved Destination**. It matches pinned ClusterIPs only, so you can't allowlist a hostname such as `api.anthropic.com`, and its public IPs aren't stable ([ADR 0003](adr/0003-kprobe-guardrails-with-pinned-ip-allowlist.md)). DNS uses UDP and isn't affected.
+The `guardrail-egress` Guardrail kills any TCP connection that isn't to the Swarm's broker, `127.0.0.1` (IPv6 `::1` is not allowed), or a declared **Approved Destination**. It matches pinned ClusterIPs only, so you can't allowlist a hostname such as `api.anthropic.com`, and its public IPs aren't stable ([ADR 0003](adr/0003-kprobe-guardrails-with-pinned-ip-allowlist.md)). DNS uses UDP and isn't affected.
 
-The supported route is an **in-cluster gateway**:
+The supported route is an in-cluster gateway:
 
 1. Run an LLM gateway or forward proxy as a Service with a pinned ClusterIP. Take the IP from the static band, `10.96.0.x` on kind. Put it in its own namespace, outside the Swarm. Swarm Guardrails only select pods that carry a Swarm role label, so the gateway is free to reach the internet.
 2. Add `<ip>:<port>` to `worker.egress.allow`, or to `orchestrator.egress.allow`. The Swarm has one egress Guardrail, and its allowlist is the union of both roles' entries plus the broker, so either role's entry covers both. Declare it on the role that actually needs it, so the values say why it's there.
@@ -137,7 +137,7 @@ Results land in `result:<taskId>`, and the Swarm activity dashboard shows the Ta
 
 | Piece | With a real Agent |
 |---|---|
-| Guardrails | They apply unchanged, because they select on the `swarm` and `role` labels and never on `implementation`. Expect them to bite legitimate work. `guardrail-workspace-exec` kills any program executed from `/workspace` (`./build/app` is killed, `bash script.sh` is not), and `guardrail-egress` kills package installs and git clones that don't go through an Approved Destination. That's the point, but plan the Agent's work around it, or add Approved Destinations for mirrors. |
+| Guardrails | They apply unchanged, because they select on the `swarm` and `role` labels and never on `implementation`. Expect them to bite legitimate work. `guardrail-workspace-exec` kills any program executed from `/workspace` (`./build/app` is killed, `bash script.sh` is not, and so is anything installed under a `/workspace` `$HOME`), and `guardrail-egress` kills package installs and git clones that don't go through an Approved Destination. That's the point, but plan the Agent's work around it, or add Approved Destinations for mirrors. |
 | Swarm activity dashboard | It works if the Adapter writes Task events. Guardrail events, kills and exec rates need nothing from the Agent, because they come from Tetragon. |
 | Results and the **Blocked** verdict | Results are the same. The verdict is still the harness's job, never the Worker's. |
 | e2e harness (`task test:e2e`) | **Mock only.** It submits named plans and judges each Task against its Scenario's `# expect:` header. Keep the `demo` Mock Swarm for CI, and run real Swarms alongside it. |
@@ -148,7 +148,7 @@ Results land in `result:<taskId>`, and the Swarm activity dashboard shows the Ta
 - [ ] The image provides `agent run` and `agent ready`, runs as UID 10001, and writes only under `/workspace`.
 - [ ] The Worker heartbeats before claiming, claims with `BLMOVE`, writes a Result, and clears `running:$POD_NAME`.
 - [ ] The Orchestrator writes `goal:<id>:count` last and reaps lost Tasks.
-- [ ] Tool calls run as child processes.
+- [ ] Tool calls run as child processes, and every binary the Agent executes is in the image, not under `/workspace`.
 - [ ] Task events are the only log lines that start with `{`, and they go to stdout.
 - [ ] The model API is reached through a gateway with a pinned ClusterIP, which is on the role's `egress.allow`.
 - [ ] No API key is committed, and preferably none is held by the Agent.

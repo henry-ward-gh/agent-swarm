@@ -2,7 +2,7 @@
 
 Kernel-level observation and **Guardrails** for AI agent swarms on Kubernetes, using [Tetragon](https://tetragon.io).
 
-The Agents are **Mock Agents** — bash workloads that play scripted benign and rogue **Scenarios** — so no LLM tokens are spent. A real Agent can take a Mock Agent's place without any other change ([how](docs/real-agents.md)).
+The Agents are **Mock Agents** — bash workloads that play scripted benign and rogue **Scenarios** — so no LLM tokens are spent. A real Agent can take a Mock Agent's place without changing the Swarm chart, the broker or the Guardrails ([how](docs/real-agents.md)).
 
 > **Status:** walking skeleton complete. One command builds a local cluster where a benign Scenario shows up on a dashboard and a rogue one is stopped by a Guardrail, and CI proves it on every PR and nightly against the latest Tetragon. The planning record is the closed [project map](https://github.com/henry-ward-gh/agent-swarm/issues/1).
 
@@ -14,7 +14,7 @@ The Agents are **Mock Agents** — bash workloads that play scripted benign and 
 - **Observability** — Prometheus, Loki, Alloy and Grafana with a **Swarm activity** dashboard: Task outcomes, Guardrail kills by policy, the kill events themselves, and exec rates per Agent pod ([`gitops/platform/observability/`](gitops/platform/observability/)).
 - **CI** — lint, Trivy, `terraform plan`, a signed image on GHCR, and an e2e job that brings the whole platform up on kind and judges every Task ([`tests/`](tests/)).
 
-Want a real AI Agent in the slot instead of the Mock? See [Swapping in a real Agent](docs/real-agents.md).
+Want a real, LLM-driven Agent in the slot instead of the Mock? See [Swapping in a real Agent](docs/real-agents.md).
 
 ## Where things live
 
