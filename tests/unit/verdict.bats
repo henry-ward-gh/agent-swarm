@@ -109,6 +109,36 @@ result() { # <status> <exitCode> <worker> <start> <finish>
   [ "$status" -eq 0 ]
 }
 
+@test "a benign Task starting <50 ms after a rogue one's kill is not blamed when given the previous Task's finish" {
+  # Seen in the nightly demo plan: worker-c killed at 10:02:00.100, that Task finished at .102 and the
+  # next (benign) Task started at .144 — inside the 50 ms slack, so the kill used to count against it.
+  run verdict succeeded "$(result succeeded 0 worker-c 2026-11-12T10:02:00.144Z 2026-11-12T10:02:00.200Z)" "$EVENTS" "$NS"
+  [ "$status" -ne 0 ]
+  run verdict succeeded "$(result succeeded 0 worker-c 2026-11-12T10:02:00.144Z 2026-11-12T10:02:00.200Z)" "$EVENTS" "$NS" 2026-11-12T10:02:00.102Z
+  [ "$status" -eq 0 ]
+}
+
+@test "the previous Task's finish never hides a kill inside the Task's own window" {
+  run verdict succeeded "$(result succeeded 0 worker-c 2026-11-12T10:02:00.050Z 2026-11-12T10:02:00.200Z)" "$EVENTS" "$NS" 2026-11-12T10:02:00.020Z
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Guardrail fired"* ]]
+}
+
+@test "previous_finish is the latest finish of an earlier Task on the same Worker" {
+  local results
+  results=$(jq -cn '[
+    {worker: "w1", startedAt: "2026-11-12T10:00:00.000Z", finishedAt: "2026-11-12T10:00:00.100Z"},
+    {worker: "w2", startedAt: "2026-11-12T10:00:00.010Z", finishedAt: "2026-11-12T10:00:00.130Z"},
+    {worker: "w1", startedAt: "2026-11-12T10:00:00.140Z", finishedAt: "2026-11-12T10:00:00.200Z"},
+    {worker: "w1", startedAt: "2026-11-12T10:00:00.240Z", finishedAt: "2026-11-12T10:00:00.300Z"}]')
+  run previous_finish "$results" 3
+  [ "$output" = "2026-11-12T10:00:00.200Z" ]
+  run previous_finish "$results" 0
+  [ "$output" = "" ]
+  run previous_finish "$results" 1
+  [ "$output" = "" ]
+}
+
 @test "a kill just outside the Task's window does not make it Blocked (no slack for rogue Tasks)" {
   # worker-c was killed at 10:02:00.100; this Task only started at 10:02:00.300.
   run verdict "blocked guardrail-workspace-exec" "$(result failed 137 worker-c 2026-11-12T10:02:00.300Z 2026-11-12T10:02:00.400Z)" "$EVENTS" "$NS"

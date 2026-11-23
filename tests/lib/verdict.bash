@@ -23,16 +23,18 @@ plan_scenarios() {
   done <"$1"
 }
 
-# guardrail_hits <events.jsonl> <policy|""> <namespace> <worker> <start> <finish> [slack-seconds]
+# guardrail_hits <events.jsonl> <policy|""> <namespace> <worker> <start> <finish> [slack-seconds] [floor]
 # Counts enforcing Guardrail events for that Worker inside [start - slack, finish + slack], compared
-# to the millisecond: a Worker starts its next Task within ~100 ms of the last, so a coarser window
-# would blame one Task for its neighbour's kill. Slack only absorbs clock skew between the Worker's
-# `date` and Tetragon's timestamps. An empty policy matches any guardrail-* policy.
+# to the millisecond. Slack only absorbs clock skew between the Worker's `date` and Tetragon's
+# timestamps. A Worker can start its next Task under 50 ms after the last one was killed, so the slack
+# alone would blame a Task for its neighbour's kill: an event at or before `floor` (the previous Task's
+# finishedAt on that Worker, see previous_finish) belongs to that Task and is never counted.
+# An empty policy matches any guardrail-* policy.
 guardrail_hits() {
-  local events="$1" policy="$2" ns="$3" worker="$4" start="$5" finish="$6" slack="${7:-0.05}" matches
+  local events="$1" policy="$2" ns="$3" worker="$4" start="$5" finish="$6" slack="${7:-0.05}" floor="${8:-}" matches
   # Fail loudly if jq can't read the log: counting a failed run's output would turn "unreadable" into
   # "zero events" (passing a benign Task) or into a partial count.
-  matches=$(jq -c --arg p "$policy" --arg ns "$ns" --arg w "$worker" --arg s "$start" --arg f "$finish" --argjson slack "$slack" '
+  matches=$(jq -c --arg p "$policy" --arg ns "$ns" --arg w "$worker" --arg s "$start" --arg f "$finish" --arg floor "$floor" --argjson slack "$slack" '
     def secs: (sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)
       + ((capture("\\.(?<f>[0-9]+)Z$") // {f: "0"}).f | ("0." + .) | tonumber);
     select(.process_kprobe != null
@@ -40,7 +42,8 @@ guardrail_hits() {
       and .process_kprobe.process.pod.namespace == $ns
       and .process_kprobe.process.pod.name == $w
       and (.process_kprobe.action | IN("KPROBE_ACTION_SIGKILL", "KPROBE_ACTION_OVERRIDE"))
-      and (.time | secs) >= (($s | secs) - $slack) and (.time | secs) <= (($f | secs) + $slack))' "$events") || return 1
+      and (.time | secs) >= (($s | secs) - $slack) and (.time | secs) <= (($f | secs) + $slack)
+      and ($floor == "" or (.time | secs) > ($floor | secs)))' "$events") || return 1
   if [[ -z "$matches" ]]; then
     echo 0
   else
@@ -48,10 +51,20 @@ guardrail_hits() {
   fi
 }
 
-# verdict <expect> <result-json> <events.jsonl> <namespace>
+# previous_finish <results-json-array> <index> — finishedAt of the latest earlier Task on the same
+# Worker as Task <index> (one that finished by the time it started), or nothing if there is none.
+previous_finish() {
+  jq -r --argjson i "$2" '
+    .[$i] as $t
+    | [.[] | select(.worker == $t.worker and .finishedAt != null and .finishedAt <= $t.startedAt) | .finishedAt]
+    | max // empty' <<<"$1"
+}
+
+# verdict <expect> <result-json> <events.jsonl> <namespace> [floor]
 # Prints why on failure. Exit 0 = the Task did what its Scenario declared.
+# floor: the previous Task's finishedAt on the same Worker (previous_finish), so its kill is not counted.
 verdict() {
-  local expect="$1" result="$2" events="$3" ns="$4"
+  local expect="$1" result="$2" events="$3" ns="$4" floor="${5:-}"
   local status code worker start finish hits
   status=$(jq -r '.status' <<<"$result")
   code=$(jq -r '.exitCode' <<<"$result")
@@ -65,7 +78,7 @@ verdict() {
         echo "benign Task did not succeed: status $status, exit $code"
         return 1
       fi
-      if ! hits=$(guardrail_hits "$events" "" "$ns" "$worker" "$start" "$finish"); then
+      if ! hits=$(guardrail_hits "$events" "" "$ns" "$worker" "$start" "$finish" 0.05 "$floor"); then
         echo "could not read the Tetragon events in $events"
         return 1
       fi
@@ -80,7 +93,7 @@ verdict() {
         echo "rogue Task was not killed: status $status, exit $code (wanted failed, 137)"
         return 1
       fi
-      if ! hits=$(guardrail_hits "$events" "$policy" "$ns" "$worker" "$start" "$finish" 0); then
+      if ! hits=$(guardrail_hits "$events" "$policy" "$ns" "$worker" "$start" "$finish" 0 "$floor"); then
         echo "could not read the Tetragon events in $events"
         return 1
       fi
