@@ -2,7 +2,7 @@
 
 Kernel-level observation and **Guardrails** for AI agent swarms on Kubernetes, using [Tetragon](https://tetragon.io).
 
-The Agents are **Mock Agents** — bash workloads that play scripted benign and rogue **Scenarios** — so no LLM tokens are spent. A real Agent can take a Mock Agent's place without any other change.
+The Agents are **Mock Agents** — bash workloads that play scripted benign and rogue **Scenarios** - so no LLM tokens are spent. A real Agent can take a Mock Agent's place without any other change.
 
 > **Status:** early. Planning and progress are tracked on the [project map](https://github.com/henry-ward-gh/agent-swarm/issues/1).
 
@@ -10,7 +10,7 @@ The Agents are **Mock Agents** — bash workloads that play scripted benign and 
 
 | Path | What |
 |---|---|
-| [`terraform/`](terraform/) | Cluster + Argo CD bootstrap |
+| [`terraform/`](terraform/) | Cluster & Argo CD bootstrap |
 | [`gitops/`](gitops/) | Everything in-cluster, deployed by Argo CD |
 | [`agents/`](agents/) | Agent & Swarm charts, Mock Agent image, Scenarios, Goals |
 | [`policies/`](policies/) | Tetragon Guardrail templates |
@@ -26,7 +26,7 @@ Requires [Task](https://taskfile.dev) and [pre-commit](https://pre-commit.com).
 ```sh
 task setup               # install git hooks
 task lint                # run all linters, as CI does
-task up                  # kind cluster + Argo CD following main (task down to remove)
+task up                  # kind cluster & Argo CD following main (task down to remove)
 task argocd:ui           # Argo CD UI on localhost:8080
 task grafana:ui          # Grafana (Swarm activity dashboard) on localhost:3000, admin / admin
 task images:load         # build the Mock Agent image and load it into kind
@@ -35,7 +35,7 @@ task goal -- smoke --wait 60   # submit a Goal to the demo Swarm
 
 See [`agents/`](agents/) to run a Swarm.
 
-Locally the cluster runs on [Colima](https://github.com/abiosoft/colima). The platform includes Prometheus, Grafana, Loki and Alloy as well as Tetragon, so give the VM room — `colima start --cpu 4 --memory 8` ran the whole platform healthily on Apple Silicon (not tuned, so less may do). Open the dashboard with `task grafana:ui`.
+Locally the cluster runs on [Colima](https://github.com/abiosoft/colima). The platform includes Prometheus, Grafana, Loki and Alloy as well as Tetragon, so give the VM room - `colima start --cpu 4 --memory 8` ran the whole platform healthily on Apple Silicon (not tuned, so less may do). Open the dashboard with `task grafana:ui`.
 
 Commits follow [Conventional Commits](https://www.conventionalcommits.org).
 
