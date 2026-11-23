@@ -37,7 +37,8 @@ check_plan() {
     failures=""
     for ((i = 0; i < n; i++)); do
       expect=$(scenario_expect "$REPO_ROOT/agents/mock/scenarios/${scenarios[$i]}.sh") || return 1
-      if ! why=$(verdict "$expect" "$(jq -c ".[$i]" <<<"$results")" "$ARTIFACTS/events-$plan.jsonl" "$SWARM_NAMESPACE"); then
+      if ! why=$(verdict "$expect" "$(jq -c ".[$i]" <<<"$results")" "$ARTIFACTS/events-$plan.jsonl" "$SWARM_NAMESPACE" \
+        "$(previous_finish "$results" "$i")"); then
         failures+="${scenarios[$i]}: $why"$'\n'
       fi
       [[ "$expect" == "blocked guardrail-egress" ]] && sink=1
