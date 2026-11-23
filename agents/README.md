@@ -6,11 +6,15 @@ The Agent slot ([ADR 0001](../docs/adr/0001-scenarios-arrive-as-tasks.md), [ADR 
 |---|---|
 | [`charts/agent/`](charts/agent/) | One role (Orchestrator or Workers) of a Swarm: hardened Deployment (read-only root, writable `/workspace`, non-root, no capabilities), zero-RBAC ServiceAccount with its token mounted, broker password from a Secret. Swap `image` to put a real Agent (via an Adapter) in the slot. |
 | [`charts/swarm/`](charts/swarm/) | A Swarm in its own namespace: the Valkey broker + the Agent chart twice (`orchestrator`, `worker`). |
-| [`mock/`](mock/) | The Mock Agent image: bash runtime, Scenarios, Goal plans. |
+| [`mock/`](mock/) | The Mock Agent image: bash runtime, Scenarios, Goal plans. Also the reference implementation of the broker protocol. |
 
 Labels every Agent carries: `agent-swarm.io/swarm`, `agent-swarm.io/role` (`orchestrator`/`worker`), `agent-swarm.io/implementation` (dashboards only — Guardrails never select on it). The broker carries `agent-swarm.io/component: broker` and no role.
 
 ## Try it on a kind cluster
+
+`task up` already deploys the `demo` Swarm through Argo CD (namespace `swarm-demo`), with Guardrails on. In that case, just run `task goal -- smoke --wait 60`.
+
+To run a Swarm by hand on a bare kind cluster without Argo CD:
 
 ```sh
 task images:load                      # build agent-swarm/mock-agent:dev and load it into kind
@@ -20,6 +24,10 @@ task goal -- smoke --wait 60          # prints the Goal id, then the Results
 ```
 
 Without `broker.password` the chart commits an annotated Secret for the in-cluster secret-generator to fill ([ADR 0004](../docs/adr/0004-two-stage-terraform-secrets-generated-in-cluster.md)).
+
+## Real Agents
+
+The slot takes any image whose `agent run` speaks the [broker protocol](../protocol/README.md). A real Agent usually needs an Adapter around it. [Swapping in a real Agent](../docs/real-agents.md) covers the contract the Adapter has to meet, reaching a model API through the egress Guardrail, the values to set, and what still works (the Guardrails and the dashboard) and what doesn't (the e2e harness is Mock-only).
 
 ## Guardrails
 

@@ -1,6 +1,6 @@
 # protocol
 
-How Agents in a Swarm talk to each other through the Swarm's Valkey broker ([ADR 0002](../docs/adr/0002-valkey-broker-between-agents.md)). The JSON Schemas are the contract an Adapter implements.
+How Agents in a Swarm talk to each other through the Swarm's Valkey broker ([ADR 0002](../docs/adr/0002-valkey-broker-between-agents.md)). The JSON Schemas are the contract an Adapter implements. A Mock Agent reads a Goal's `name` and a Task's `scenario`. A real Agent reads `prompt` instead. [Swapping in a real Agent](../docs/real-agents.md) walks through what a Worker and an Orchestrator Adapter must do.
 
 | Message | Schema | Example |
 |---|---|---|
@@ -29,4 +29,4 @@ Every message carries `"version": 1`.
 
 ## Task events (logs, not the broker)
 
-Besides Results, every Agent writes one JSON line to **stdout** per Task transition, so the Swarm activity dashboard can show Task flow without a metrics endpoint. The Worker writes `started`, then `succeeded` or `failed`; the Orchestrator writes `lost` (a killed Worker cannot log its own death). Human-readable logs go to stderr, so stdout carries only these lines. An Adapter for a real Agent must emit the same lines (`SWARM_NAME` gives the `swarm` field).
+Besides Results, every Agent writes one JSON line to **stdout** per Task transition, so the Swarm activity dashboard can show Task flow without a metrics endpoint. The Worker writes `started`, then `succeeded` or `failed`; the Orchestrator writes `lost` (a killed Worker cannot log its own death). Human-readable logs go to stderr, so stdout carries only these lines. An Adapter for a real Agent must emit the same lines (`SWARM_NAME` gives the `swarm` field; `scenario` is `""` for a prompt Task). The collector can't tell stdout from stderr and treats every log line starting with `{` as a Task event, so an Agent must not write other JSON log lines.

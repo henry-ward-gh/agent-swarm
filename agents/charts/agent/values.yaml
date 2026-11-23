@@ -27,7 +27,7 @@ broker:
 egress:
   allow: []
 
-# -- Seconds a Scenario may run before the Worker kills it.
+# -- Seconds a Task may run before the Worker kills it (exit 137).
 taskTimeoutSeconds: 60
 
 workspace:

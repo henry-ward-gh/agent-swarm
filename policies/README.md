@@ -4,7 +4,7 @@ Tetragon `TracingPolicyNamespaced` templates for the Guardrails ([ADR 0003](../d
 
 | Template | Hook → action | Posture |
 |---|---|---|
-| [`guardrail-egress`](templates/guardrail-egress.yaml) | `tcp_connect` to anything but the broker, loopback or a declared Approved Destination → `Sigkill` | allowlist of pinned ClusterIPs |
+| [`guardrail-egress`](templates/guardrail-egress.yaml) | `tcp_connect` to anything but the broker, `127.0.0.1` or a declared Approved Destination → `Sigkill` | allowlist of pinned ClusterIPs |
 | [`guardrail-credential-files`](templates/guardrail-credential-files.yaml) | `security_file_open` under the ServiceAccount directory (prefix) → `Override` + `Sigkill` | denylist |
 | [`guardrail-workspace-exec`](templates/guardrail-workspace-exec.yaml) | `security_bprm_check` on `/workspace/` → `Override` + `Sigkill` | denylist |
 
